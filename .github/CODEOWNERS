@@ -1,0 +1,10 @@
+# CODEOWNERS for Backend Repository
+# This file defines who is responsible for reviewing and approving pull requests.
+
+# General rule: all files require review by backend owners
+*             @IvanAusechaS @Frank-totti
+
+# Specific paths
+src/**        @IvanAusechaS @Frank-totti
+tests/**      @JonMeister
+.github/**    @IvanAusechaS
