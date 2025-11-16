@@ -80,7 +80,7 @@ async function sendEmail(
      */
     await sgMail.send(msg);
 
-    console.log(`📧 Email enviado a ${to}`);
+    //console.log(`📧 Email enviado a ${to}`);
   } catch (error: any) {
     console.error("❌ Error enviando email:", error);
     if (error.response) {

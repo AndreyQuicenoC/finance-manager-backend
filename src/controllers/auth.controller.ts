@@ -2,26 +2,25 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../config/db";
-import { UserResponse } from "../types";
+//import { UserResponse } from "../types";
 import sendEmail from "../utils/sendEmail";
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 const SALT_ROUNDS = 10;
 
 // Función para excluir campos sensibles
-const excludePassword = (user: any): UserResponse => {
-  const { contraseña, ...userWithoutPassword } = user;
-  return userWithoutPassword;
-};
+//const excludePassword = (user: any): UserResponse => {
+//  const { contraseña: _, ...userWithoutPassword } = user;
+//  return userWithoutPassword;
+//};
 
 export const signup = async (req: Request, res: Response) => {
   try {
-    const { nombres, apellidos, edad, correoElectronico, contraseña } =
-      req.body;
+    const { nickname, email, password, roleId } = req.body;
 
     // Verificar si el usuario ya existe
     const existingUser = await prisma.user.findUnique({
-      where: { correoElectronico },
+      where: { email },
     });
 
     if (existingUser) {
@@ -31,16 +30,21 @@ export const signup = async (req: Request, res: Response) => {
     }
 
     // Hash de la contraseña
-    const hashedPassword = await bcrypt.hash(contraseña, SALT_ROUNDS);
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     // Crear nuevo usuario
     const newUser = await prisma.user.create({
       data: {
-        nombres,
-        apellidos,
-        edad: parseInt(edad),
-        correoElectronico,
-        contraseña: hashedPassword,
+        email: email,
+        password: hashedPassword,
+        nickname: nickname,
+        roleId: roleId,
+      },
+      select: {
+        id: true,
+        email: true,
+        nickname: true,
+        createdAt: true,
       },
     });
 
@@ -52,7 +56,7 @@ export const signup = async (req: Request, res: Response) => {
     return res.status(201).json({
       message: "Usuario registrado exitosamente",
       token,
-      user: excludePassword(newUser),
+      user: newUser,
     });
   } catch (error) {
     console.error("Error en signup:", error);
@@ -67,6 +71,12 @@ export const login = async (req: Request, res: Response) => {
     // Buscar usuario
     const user = await prisma.user.findUnique({
       where: { correoElectronico },
+      select: {
+        id: true,
+        email: true,
+        nickname: true,
+        createdAt: true,
+      },
     });
 
     if (!user) {
@@ -95,7 +105,7 @@ export const login = async (req: Request, res: Response) => {
 
     return res.json({
       message: "Inicio de sesión exitoso",
-      user: excludePassword(user),
+      user: user,
     });
   } catch (error) {
     console.error("Error en login:", error);
@@ -123,13 +133,19 @@ export const getProfile = async (req: Request, res: Response) => {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        nickname: true,
+        createdAt: true,
+      },
     });
 
     if (!user) {
       return res.status(404).json({ error: "Usuario no encontrado" });
     }
 
-    return res.json({ user: excludePassword(user) });
+    return res.json({ user: user });
   } catch (error) {
     console.error("Error en getProfile:", error);
     return res.status(500).json({ error: "Error al obtener perfil" });

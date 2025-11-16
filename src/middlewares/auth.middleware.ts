@@ -10,11 +10,12 @@ import jwt from "jsonwebtoken";
 import { NextFunction, Request, Response } from "express";
 
 // Extend Express Request interface to include 'user' property
-declare global {
-  namespace Express {
-    interface Request {
-      user?: any;
-    }
+declare module "express-serve-static-core" {
+  interface Request {
+    user?: {
+      userId: string;
+      email: string;
+    };
   }
 }
 
@@ -71,7 +72,19 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
      * Add decoded user information to request object.
      * Makes user data available in subsequent middleware/controllers.
      */
-    req.user = decoded;
+    if (
+      typeof decoded === "object" &&
+      decoded !== null &&
+      "userId" in decoded &&
+      "email" in decoded
+    ) {
+      req.user = {
+        userId: (decoded as any).userId,
+        email: (decoded as any).email,
+      };
+    } else {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
 
     //console.log("✅ Usuario autenticado:", (decoded as any).userId);
 
