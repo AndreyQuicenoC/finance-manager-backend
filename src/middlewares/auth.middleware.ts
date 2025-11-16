@@ -79,8 +79,8 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
       "email" in decoded
     ) {
       req.user = {
-        userId: (decoded as any).userId,
-        email: (decoded as any).email,
+        userId: decoded.userId,
+        email: decoded.email,
       };
     } else {
       return res.status(401).json({ message: "Invalid token payload" });
