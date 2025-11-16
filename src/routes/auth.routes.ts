@@ -4,6 +4,8 @@ import {
   login,
   logout,
   getProfile,
+  recoverPass,
+  resetPass,
 } from "../controllers/auth.controller";
 import {
   signupValidation,
@@ -18,5 +20,7 @@ router.post("/signup", signupValidation, validate, signup);
 router.post("/login", loginValidation, validate, login);
 router.post("/logout", verifyToken, logout);
 router.get("/profile", verifyToken, getProfile);
+router.post("/recover", recoverPass);
+router.post("/reset/:token", resetPass);
 
 export default router;

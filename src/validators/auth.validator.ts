@@ -31,7 +31,9 @@ export const signupValidation = [
   body("contraseña")
     .isLength({ min: 8 })
     .withMessage("La contraseña debe tener al menos 8 caracteres")
-    .matches(/^(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>])/)
+    .matches(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#.])[A-Za-z\d@$!%*?&#.]{8,}$/
+    )
     .withMessage(
       "La contraseña debe contener al menos una mayúscula y un carácter especial"
     ),
