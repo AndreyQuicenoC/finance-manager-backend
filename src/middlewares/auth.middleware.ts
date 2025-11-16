@@ -78,7 +78,7 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
     /**
      * Continue to next middleware or route handler.
      */
-    next();
+    return next();
   } catch (error) {
     /**
      * Handle specific JWT errors with appropriate responses.

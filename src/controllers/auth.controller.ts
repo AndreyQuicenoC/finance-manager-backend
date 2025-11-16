@@ -2,9 +2,9 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../config/db";
-import { UserCreateInput, UserResponse } from "../types";
+import { UserResponse } from "../types";
 
-const JWT_SECRET = process.env.JWT_SECRET || "tu_secreto_super_seguro_aqui";
+const JWT_SECRET = process.env.JWT_SECRET as string;
 const SALT_ROUNDS = 10;
 
 // Función para excluir campos sensibles
