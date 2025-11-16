@@ -59,7 +59,7 @@ jobs:
 
       # Deploy to Render if credentials are configured
       - name: Deploy to Render
-        if: ${{ secrets.RENDER_API_KEY != '' && secrets.RENDER_SERVICE_ID != '' }}
+        if: secrets.RENDER_API_KEY != '' && secrets.RENDER_SERVICE_ID != ''
         run: |
           echo "Deploying to Render service: ${{ secrets.RENDER_SERVICE_ID }}"
           curl -X POST "https://api.render.com/deploy/srv-${{ secrets.RENDER_SERVICE_ID }}" \
