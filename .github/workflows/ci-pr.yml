@@ -9,6 +9,9 @@
 name: CI - Pull Request Checks
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
@@ -52,7 +55,6 @@ jobs:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
     needs: [lint-and-build]
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
     steps:
       # Checkout source code with full git history (required for SonarCloud)
       - name: Checkout
