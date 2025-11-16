@@ -4,11 +4,6 @@
 # Required secrets for deployment:
 #   - RENDER_API_KEY: Render.com API key for deployment
 #   - RENDER_SERVICE_ID: Render.com service ID to deploy
-#
-# Optional secrets:
-#   - SONAR_TOKEN: SonarCloud authentication token (for code quality analysis)
-#   - SONAR_PROJECT_KEY: SonarCloud project key
-#   - SONAR_ORGANIZATION: SonarCloud organization name
 
 name: CI/CD - Deploy on main
 
@@ -43,13 +38,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # Run tests (placeholder for now, to be implemented by test owner)
-      - name: Run tests (placeholder)
-        run: |
-          echo "Placeholder for tests - to be implemented by test owner"
-          # Future implementation:
-          # npm run test -- --coverage --watchAll=false --ci
-          # or: npm test -- --coverage --ci
+      # Run tests (to be implemented by test owner)
+      - name: Run tests with coverage
+        run: npm run test:coverage
 
       # Build TypeScript project
       - name: Build
