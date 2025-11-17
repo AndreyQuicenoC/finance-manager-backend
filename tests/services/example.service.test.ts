@@ -1,4 +1,5 @@
-import { ExampleService } from './example.service';
+import { describe, expect, it, beforeEach } from '@jest/globals';
+import { ExampleService } from '../../src/services/example.service';
 
 describe('ExampleService', () => {
   let service: ExampleService;

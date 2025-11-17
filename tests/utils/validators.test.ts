@@ -1,9 +1,10 @@
+import { describe, expect, it } from '@jest/globals';
 import {
   isValidEmail,
   isValidPassword,
   sanitizeString,
   isPositiveNumber,
-} from './validators';
+} from '../../src/utils/validators';
 
 describe('Validators', () => {
   describe('isValidEmail', () => {

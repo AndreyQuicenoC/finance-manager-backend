@@ -1,10 +1,11 @@
+import { describe, expect, it, beforeEach, afterEach, jest } from '@jest/globals';
 import { Request, Response } from 'express';
-import { ExampleController } from './example.controller';
+import { ExampleController } from '../../src/controllers/example.controller';
 
 describe('ExampleController', () => {
   let controller: ExampleController;
   let mockRequest: Partial<Request>;
-  let mockResponse: Partial<Response>;
+  let mockResponse: Response;
 
   beforeEach(() => {
     controller = new ExampleController();
@@ -12,7 +13,7 @@ describe('ExampleController', () => {
     mockResponse = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis(),
-    };
+    } as unknown as Response;
   });
 
   afterEach(() => {
@@ -34,7 +35,7 @@ describe('ExampleController', () => {
     it('should return 500 on error', () => {
       mockResponse.status = jest.fn().mockImplementationOnce(() => {
         throw new Error('Test error');
-      });
+      }) as unknown as Response['status'];
 
       try {
         controller.getAll(mockRequest as Request, mockResponse as Response);
