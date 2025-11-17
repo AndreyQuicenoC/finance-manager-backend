@@ -11,7 +11,19 @@ import {
 
 const SALT_ROUNDS = 10;
 
-// Función para excluir campos sensibles
+/**
+ * Removes sensitive fields from a user object, such as the password.
+ *
+ * @async
+ * @param {Object} user - Full user object retrieved from the database.
+ * @param {number} user.id - User ID.
+ * @param {string} user.email - User email.
+ * @param {string} user.nickname - User nickname.
+ * @param {number} user.roleId - Associated role ID.
+ * @param {Date} user.createdAt - Creation date.
+ * @param {Date} user.updatedAt - Update date.
+ * @returns {Promise<Object>} User object without sensitive fields.
+ */
 export const excludePassword = async (user: any) => {
 
   const role = await prisma.role.findUnique({ where: { id: user.roleId } });
@@ -27,6 +39,15 @@ export const excludePassword = async (user: any) => {
   return data;
 };
 
+/**
+ * Generates a new access token using the refresh token stored in cookies and database.
+ *
+ * @async
+ * @route POST /auth/refresh
+ * @param {Request} req - Express request object.
+ * @param {Response} res - Express response object.
+ * @returns {Promise<Response>} Response with new access token or an error.
+ */
 export const refreshToken = async (req: Request, res: Response) => {
   const refreshToken = req.cookies.refreshToken;
 
@@ -62,6 +83,19 @@ export const refreshToken = async (req: Request, res: Response) => {
   res.json({ message: "Token refreshed" });
 };
 
+/**
+ * Registers a new user in the database.
+ *
+ * @async
+ * @route POST /auth/signup
+ * @param {Request} req - Request containing registration data.
+ * @param {string} req.body.nickname - User nickname.
+ * @param {string} req.body.email - User email.
+ * @param {string} req.body.password - User password.
+ * @param {number} req.body.roleId - Role assigned to the user.
+ * @param {Response} res - Express response object.
+ * @returns {Promise<Response>} Response containing created user or an error.
+ */
 export const signup = async (req: Request, res: Response) => {
   try {
     const { nickname, email, password, roleId } = req.body;
@@ -98,6 +132,17 @@ export const signup = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Logs in a user, validates credentials, generates tokens and manages sessions.
+ *
+ * @async
+ * @route POST /auth/login
+ * @param {Request} req - Request containing login credentials.
+ * @param {string} req.body.email - User email.
+ * @param {string} req.body.password - User password.
+ * @param {Response} res - Express response object.
+ * @returns {Promise<Response>} Response with tokens and sanitized user data.
+ */
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
@@ -184,6 +229,14 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Logs out the user from all active sessions by deleting all their user sessions.
+ *
+ * @route POST /auth/logout/all
+ * @param {Request} req - HTTP request containing cookies.
+ * @param {Response} res - HTTP response.
+ * @returns {Response} Confirmation message.
+ */
 export const allLogout = (req: Request, res: Response) => {
   prisma.userSession.deleteMany({
     where: { refreshToken: req.cookies.RefreshToken },
@@ -205,6 +258,14 @@ export const allLogout = (req: Request, res: Response) => {
   res.json({ message: "Sesión cerrada exitosamente" });
 };
 
+/**
+ * Logs out the user from the current session by invalidating their refresh token.
+ *
+ * @route POST /auth/logout
+ * @param {Request} req - HTTP request containing cookies.
+ * @param {Response} res - HTTP response.
+ * @returns {Response} Confirmation message.
+ */
 export const logout = (req: Request, res: Response) => {
   prisma.userSession.update({
     where: { refreshToken: req.cookies.RefreshToken },
@@ -229,6 +290,16 @@ export const logout = (req: Request, res: Response) => {
   res.json({ message: "Sesión cerrada exitosamente" });
 };
 
+
+/**
+ * Retrieves the profile information of the authenticated user.
+ *
+ * @async
+ * @route GET /auth/profile
+ * @param {Request} req - HTTP request containing authenticated user data.
+ * @param {Response} res - HTTP response.
+ * @returns {Promise<Response>} Sanitized user profile or an error.
+ */
 export const getProfile = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -253,12 +324,6 @@ export const getProfile = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Rol no encontrado" });
     }
 
-    const resData = {
-      "nickname": user.nickname,
-      "email": user.email,
-      "rol": role.name
-    }
-
     res.json({ user: await excludePassword(user) });
   } catch (error) {
     console.error("Error en getProfile:", error);
@@ -266,7 +331,16 @@ export const getProfile = async (req: Request, res: Response) => {
   }
 };
 
-
+/**
+ * Sends a password reset email with a temporary token.
+ *
+ * @async
+ * @route POST /auth/recover
+ * @param {Request} req - HTTP request containing the user's email.
+ * @param {string} req.body.email - User email.
+ * @param {Response} res - HTTP response.
+ * @returns {Promise<Response>} Message indicating whether the email was sent.
+ */
 export const recoverPass = async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
@@ -320,6 +394,18 @@ export const recoverPass = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Resets the user's password using a valid reset token.
+ *
+ * @async
+ * @route POST /auth/reset/:token
+ * @param {Request} req - HTTP request containing the reset token and new passwords.
+ * @param {string} req.params.token - Password reset token.
+ * @param {string} req.body.password - New password.
+ * @param {string} req.body.confirmPassword - Password confirmation.
+ * @param {Response} res - HTTP response.
+ * @returns {Promise<Response>} Success message or error depending on validation.
+ */
 export const resetPass = async (req: Request, res: Response) => {
   try {
     const { token } = req.params;
@@ -384,7 +470,17 @@ export const resetPass = async (req: Request, res: Response) => {
   }
 };
 
-// Actualizar perfil (nickname y/o email)
+/**
+ * Updates the authenticated user's profile (nickname and/or email).
+ *
+ * @async
+ * @route PUT /auth/profile
+ * @param {Request} req - HTTP request containing new profile data.
+ * @param {string} [req.body.nickname] - New nickname.
+ * @param {string} [req.body.email] - New email.
+ * @param {Response} res - HTTP response.
+ * @returns {Promise<Response>} Updated user data or error.
+ */
 export const updateProfile = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -434,7 +530,19 @@ export const updateProfile = async (req: Request, res: Response) => {
   }
 };
 
-// Cambiar contraseña (requiere contraseña actual)
+/**
+ * Changes the authenticated user's password.
+ *
+ * @async
+ * @route PUT /auth/change-password
+ * @param {Request} req - HTTP request containing password information.
+ * @param {string} req.body.currentPassword - Current password.
+ * @param {string} req.body.newPassword - New password.
+ * @param {string} req.body.confirmPassword - Password confirmation.
+ * @param {Response} res - HTTP response.
+ * @returns {Promise<Response>} Success message or error.
+ */
+
 export const changePassword = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -502,7 +610,17 @@ export const changePassword = async (req: Request, res: Response) => {
   }
 };
 
-// Eliminar cuenta de usuario
+/**
+ * Permanently deletes the authenticated user's account and all related records.
+ *
+ * @async
+ * @route DELETE /auth/delete-account
+ * @param {Request} req - HTTP request containing user authentication and password.
+ * @param {string} req.body.password - Password required for confirmation.
+ * @param {Response} res - HTTP response.
+ * @returns {Promise<Response>} Confirmation of account deletion or error.
+ */
+
 export const deleteAccount = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -547,7 +665,7 @@ export const deleteAccount = async (req: Request, res: Response) => {
       where: { userId },
     });
 
-    // Finalmente, eliminar el usuario
+    // Eliminar el usuario
     await prisma.user.delete({
       where: { id: userId },
     });
