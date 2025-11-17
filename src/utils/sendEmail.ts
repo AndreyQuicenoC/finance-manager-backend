@@ -59,17 +59,40 @@ async function sendEmail(
       throw new Error("SENDGRID_FROM_EMAIL no está configurada");
     }
 
+<<<<<<< HEAD
     sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
+=======
+    /**
+     * Configure SendGrid with API key
+     */
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+    /**
+     * Prepare email message
+     */
+>>>>>>> origin/feature/JF-database
     const msg = {
       to: to,
       from: process.env.SENDGRID_FROM_EMAIL,
       subject: subject,
       text: text,
+<<<<<<< HEAD
       html: `<p>${text.replaceAll("\n", "<br>")}</p>`,
     };
 
     await sgMail.send(msg);
+=======
+      html: `<p>${text.replace(/\n/g, "<br>")}</p>`,
+    };
+
+    /**
+     * Send email via SendGrid API
+     */
+    await sgMail.send(msg);
+
+    // Email sent successfully - could be logged to monitoring service in production
+>>>>>>> origin/feature/JF-database
   } catch (error: unknown) {
     console.error("Error enviando email:", error);
     if (error && typeof error === "object" && "response" in error) {

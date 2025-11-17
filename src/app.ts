@@ -18,8 +18,12 @@
 
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
+<<<<<<< HEAD
 import accountRoutes from "./routes/account.routes";
 import authRoutes from "./routes/auth.routes";
+=======
+import cookieParser from "cookie-parser";
+>>>>>>> origin/feature/JF-database
 
 const app: Application = express();
 
@@ -53,9 +57,16 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+<<<<<<< HEAD
 // Rutas
 app.use("/api/auth", authRoutes);
 app.use("/api/account", accountRoutes);
+=======
+// cookie parser added for send to fronted cookie
+app.use(cookieParser());
+
+// Rotes
+>>>>>>> origin/feature/JF-database
 
 /**
  * Health check endpoint.
