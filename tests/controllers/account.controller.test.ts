@@ -1,3 +1,9 @@
+/**
+ * @file Test suite for Account Controller
+ * @description Tests all CRUD operations for account management using Prisma
+ * @module tests/controllers/account
+ */
+
 import { describe, expect, it, beforeEach, jest, afterAll } from '@jest/globals';
 import { Request, Response } from 'express';
 import prisma from '../../src/config/db';
@@ -8,6 +14,10 @@ import {
   deleteAccount,
 } from '../../src/controllers/account.controller';
 
+/**
+ * Mock implementation of Prisma client for testing
+ * Prevents actual database operations during tests
+ */
 jest.mock('../../src/config/db', () => ({
   __esModule: true,
   default: {
@@ -21,9 +31,16 @@ jest.mock('../../src/config/db', () => ({
   },
 }));
 
+/** Typed mock of Prisma client for test assertions */
 const prismaMock = prisma as jest.Mocked<typeof prisma>;
+
+/** Spy for console.error to suppress error logs during tests */
 const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 
+/**
+ * Creates a mock Express Response object for testing
+ * @returns {Response} Mocked response with chainable methods
+ */
 const createMockResponse = () => {
   return {
     status: jest.fn().mockReturnThis(),
@@ -31,17 +48,34 @@ const createMockResponse = () => {
   } as unknown as Response;
 };
 
+/**
+ * Test suite for Account Controller operations
+ * Tests all CRUD operations with both success and error scenarios
+ */
 describe('AccountController', () => {
+  /**
+   * Reset all mocks before each test to ensure test isolation
+   */
   beforeEach(() => {
     jest.clearAllMocks();
     consoleErrorSpy.mockClear();
   });
 
+  /**
+   * Restore console.error after all tests complete
+   */
   afterAll(() => {
     consoleErrorSpy.mockRestore();
   });
 
+  /**
+   * Test suite for account creation functionality
+   */
   describe('createAccount', () => {
+    /**
+     * Verifies successful account creation with valid payload
+     * @test {POST /api/accounts}
+     */
     it('should create an account when payload is valid', async () => {
       const req = {
         body: { name: 'Cuenta', money: 100, userId: 1, categoryId: 2 },
@@ -67,6 +101,10 @@ describe('AccountController', () => {
       });
     });
 
+    /**
+     * Verifies proper error handling when required fields are missing
+     * @test {POST /api/accounts} - Missing userId or categoryId
+     */
     it('should return 400 when userId or categoryId are missing', async () => {
       const req = {
         body: { name: 'Cuenta sin usuario' },
@@ -82,6 +120,10 @@ describe('AccountController', () => {
       expect(prismaMock.account.create).not.toHaveBeenCalled();
     });
 
+    /**
+     * Verifies proper error handling for unexpected database errors
+     * @test {POST /api/accounts} - Database error
+     */
     it('should handle unexpected errors', async () => {
       const req = {
         body: { name: 'Cuenta', userId: 1, categoryId: 2 },
@@ -96,7 +138,14 @@ describe('AccountController', () => {
     });
   });
 
+  /**
+   * Test suite for fetching accounts by user ID
+   */
   describe('getAccountsByUser', () => {
+    /**
+     * Verifies successful retrieval of user accounts with related data
+     * @test {GET /api/accounts/user/:userId}
+     */
     it('should return accounts for the provided userId', async () => {
       const req = { params: { userId: '5' } } as unknown as Request;
       const res = createMockResponse();
@@ -112,6 +161,10 @@ describe('AccountController', () => {
       expect(res.json).toHaveBeenCalledWith(accounts);
     });
 
+    /**
+     * Verifies error handling when database query fails
+     * @test {GET /api/accounts/user/:userId} - Database error
+     */
     it('should return 500 when fetching accounts fails', async () => {
       const req = { params: { userId: '5' } } as unknown as Request;
       const res = createMockResponse();
@@ -126,7 +179,14 @@ describe('AccountController', () => {
     });
   });
 
+  /**
+   * Test suite for account update functionality
+   */
   describe('updateAccount', () => {
+    /**
+     * Verifies proper 404 response when account doesn't exist
+     * @test {PUT /api/accounts/:id} - Not found
+     */
     it('should return 404 when account is not found', async () => {
       const req = {
         params: { id: '10' },
@@ -144,6 +204,10 @@ describe('AccountController', () => {
       expect(prismaMock.account.update).not.toHaveBeenCalled();
     });
 
+    /**
+     * Verifies successful account update with partial data
+     * @test {PUT /api/accounts/:id} - Success
+     */
     it('should update the account when it exists', async () => {
       const req = {
         params: { id: '10' },
@@ -176,6 +240,10 @@ describe('AccountController', () => {
       });
     });
 
+    /**
+     * Verifies error handling when update operation fails
+     * @test {PUT /api/accounts/:id} - Database error
+     */
     it('should return 500 when update operation fails', async () => {
       const req = {
         params: { id: '10' },
@@ -195,7 +263,14 @@ describe('AccountController', () => {
     });
   });
 
+  /**
+   * Test suite for account deletion functionality
+   */
   describe('deleteAccount', () => {
+    /**
+     * Verifies successful account deletion
+     * @test {DELETE /api/accounts/:id}
+     */
     it('should delete an account and respond with success message', async () => {
       const req = { params: { id: '20' } } as unknown as Request;
       const res = createMockResponse();
@@ -209,6 +284,10 @@ describe('AccountController', () => {
       expect(res.json).toHaveBeenCalledWith({ message: 'Cuenta eliminada' });
     });
 
+    /**
+     * Verifies error handling when deletion fails
+     * @test {DELETE /api/accounts/:id} - Database error
+     */
     it('should return 500 when deletion fails', async () => {
       const req = { params: { id: '20' } } as unknown as Request;
       const res = createMockResponse();

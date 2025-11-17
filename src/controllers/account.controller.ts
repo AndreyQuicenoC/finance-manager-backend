@@ -193,20 +193,20 @@ export const updateAccount = async (req: Request, res: Response) => {
       where: { id: Number(id) },
     });
 
-    if (!existing) {
+    if (existing) {
+      const updated = await prisma.account.update({
+        where: { id: Number(id) },
+        data: {
+          name: name ?? existing.name,
+          money: money !== undefined ? money : existing.money,
+          categoryId: categoryId ?? existing.categoryId,
+        },
+      });
+
+      return res.json({ message: "Cuenta actualizada", account: updated });
+    } else {
       return res.status(404).json({ error: "Cuenta no encontrada" });
     }
-
-    const updated = await prisma.account.update({
-      where: { id: Number(id) },
-      data: {
-        name: name ?? existing.name,
-        money: money !== undefined ? money : existing.money,
-        categoryId: categoryId ?? existing.categoryId,
-      },
-    });
-
-    return res.json({ message: "Cuenta actualizada", account: updated });
   } catch (error) {
     console.error("Error actualizando cuenta:", error);
     return res.status(500).json({ error: "Error al actualizar cuenta" });

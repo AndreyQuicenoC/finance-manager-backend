@@ -24,22 +24,27 @@ import authRoutes from "./routes/auth.routes";
 const app: Application = express();
 
 /**
- * CORS configuration for cross-origin requests.
- * 
- * @constant {Object} corsOptions
- * @property {string|string[]} origin - Allowed origin(s) based on environment
- * @property {boolean} credentials - Allow cookies to be sent
- * @property {number} optionsSuccessStatus - HTTP status for OPTIONS requests
- * 
- * @description
- * - Production: Uses FRONTEND_URL_PROD or CORS_ORIGIN from environment
- * - Development: Uses FRONTEND_URL_DEV or defaults to http://localhost:3000
+ * CORS configuration with security best practices
+ * Only allow requests from trusted origins
  */
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production'
-    ? process.env.FRONTEND_URL_PROD || process.env.CORS_ORIGIN
-    : process.env.FRONTEND_URL_DEV || 'http://localhost:3000',
-  credentials: true, // Allow cookies to be sent
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
   optionsSuccessStatus: 200,
 };
 
