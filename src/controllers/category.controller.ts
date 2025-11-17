@@ -13,24 +13,25 @@ import prisma from "../config/db";
  */
 export const createCategory = async (req: Request, res: Response) => {
   try {
-    const { tipo } = req.body;
+    const { tipo, Isincome } = req.body;
 
-    if (!tipo) {
-      return res.status(400).json({ error: "Falta el campo 'tipo'" });
+    if (!tipo || Isincome === undefined) {
+      return res.status(400).json({ error: "Faltan los campos 'tipo' e 'Isincome'" });
     }
 
     const category = await prisma.category.create({
       data: {
         tipo,
+        Isincome: Boolean(Isincome),
       },
     });
 
-    res
+    return res
       .status(201)
       .json({ message: "Categoría creada exitosamente", category });
   } catch (error) {
     console.error("Error creando categoría:", error);
-    res.status(500).json({ error: "Error al crear categoría" });
+    return res.status(500).json({ error: "Error al crear categoría" });
   }
 };
 
@@ -79,10 +80,10 @@ export const getCategoryById = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Categoría no encontrada" });
     }
 
-    res.json(category);
+    return res.json(category);
   } catch (error) {
     console.error("Error obteniendo categoría:", error);
-    res.status(500).json({ error: "Error al obtener categoría" });
+    return res.status(500).json({ error: "Error al obtener categoría" });
   }
 };
 
@@ -119,10 +120,10 @@ export const updateCategory = async (req: Request, res: Response) => {
       },
     });
 
-    res.json({ message: "Categoría actualizada", category: updated });
+    return res.json({ message: "Categoría actualizada", category: updated });
   } catch (error) {
     console.error("Error actualizando categoría:", error);
-    res.status(500).json({ error: "Error al actualizar categoría" });
+    return res.status(500).json({ error: "Error al actualizar categoría" });
   }
 };
 

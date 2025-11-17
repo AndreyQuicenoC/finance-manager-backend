@@ -5,17 +5,33 @@ import categoryRoutes from "./routes/category.routes";
 
 const app: Application = express();
 
+/**
+ * CORS configuration with security best practices
+ * Only allow requests from trusted origins
+ */
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
+
 // Middleware
-
-// cors configuration added
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:5173", 
-    credentials: true, 
-    optionsSuccessStatus: 200
-  })
-);
-
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

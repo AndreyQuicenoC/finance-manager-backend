@@ -48,9 +48,6 @@ async function sendEmail(
   text: string
 ): Promise<void> {
   try {
-    /**
-     * Check if API key is configured
-     */
     if (!process.env.SENDGRID_API_KEY) {
       throw new Error("SENDGRID_API_KEY no está configurada");
     }
@@ -59,32 +56,21 @@ async function sendEmail(
       throw new Error("SENDGRID_FROM_EMAIL no está configurada");
     }
 
-    /**
-     * Configure SendGrid with API key
-     */
     sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-    /**
-     * Prepare email message
-     */
     const msg = {
       to: to,
       from: process.env.SENDGRID_FROM_EMAIL,
       subject: subject,
       text: text,
-      html: `<p>${text.replace(/\n/g, "<br>")}</p>`,
+      html: `<p>${text.replaceAll("\n", "<br>")}</p>`,
     };
 
-    /**
-     * Send email via SendGrid API
-     */
     await sgMail.send(msg);
-
-    console.log(`📧 Email enviado a ${to}`);
-  } catch (error: any) {
-    console.error("❌ Error enviando email:", error);
-    if (error.response) {
-      console.error("SendGrid error:", error.response.body);
+  } catch (error: unknown) {
+    console.error("Error enviando email:", error);
+    if (error && typeof error === "object" && "response" in error) {
+      console.error("SendGrid error:", (error as { response: { body: unknown } }).response.body);
     }
     throw new Error("No se pudo enviar el correo");
   }
