@@ -30,10 +30,10 @@ export const createTagPocket = async (req: Request, res: Response) => {
       },
     });
 
-    res.status(201).json({ message: "TagPocket creado", tag });
+    return res.status(201).json({ message: "TagPocket creado", tag });
   } catch (error) {
     console.error("Error creando TagPocket:", error);
-    res.status(500).json({ error: "Error al crear TagPocket" });
+    return res.status(500).json({ error: "Error al crear TagPocket" });
   }
 };
 
@@ -98,10 +98,10 @@ export const updateTagPocket = async (req: Request, res: Response) => {
         },
       });
   
-      res.json({ message: "TagPocket actualizado", tag: updated });
+      return res.json({ message: "TagPocket actualizado", tag: updated });
     } catch (error) {
       console.error("Error actualizando TagPocket:", error);
-      res.status(500).json({ error: "Error al actualizar TagPocket" });
+      return res.status(500).json({ error: "Error al actualizar TagPocket" });
     }
   };
   
