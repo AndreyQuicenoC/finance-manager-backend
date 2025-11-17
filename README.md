@@ -21,6 +21,12 @@ Backend service for personal finance manager application, built with **Node.js**
 ```bash
 # Install dependencies
 npm install
+
+# Copy environment variables template
+cp .env.example .env
+
+# Edit .env file with your values
+# See .env.example for all required variables
 ```
 
 ## 🏃 Running the Application
@@ -170,8 +176,29 @@ backend/
 
 9. Merge when all checks pass ✅
 
+## 🔐 Environment Variables
+
+The application requires several environment variables to run. See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed configuration instructions.
+
+**Quick setup for development:**
+```bash
+cp .env.example .env
+# Edit .env with your values
+```
+
+**Required variables:**
+- `JWT_SECRET` - Secret key for JWT tokens
+- `SENDGRID_API_KEY` - SendGrid API key for emails
+- `SENDGRID_FROM_EMAIL` - Verified sender email
+- `FRONTEND_URL_PROD` - Production frontend URL
+- `FRONTEND_URL_DEV` - Development frontend URL (optional)
+
+**Note:** In production, set these variables in your hosting platform (Render, Heroku, etc.). The `.env` file is only used in development.
+
 ## 📚 Additional Documentation
 
+- [API Endpoints Documentation](./API_ENDPOINTS.md) - Complete API reference for frontend
+- [Deployment Guide](./DEPLOYMENT.md) - Environment variables and deployment instructions
 - [Contributing Guidelines](CONTRIBUTING.MD)
 - [Code Quality Guide](BACKEND-CONTRIBUTING-QUALITY.md)
 

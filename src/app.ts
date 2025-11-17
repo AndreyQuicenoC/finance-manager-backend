@@ -1,6 +1,25 @@
+/**
+ * @fileoverview Express application configuration and setup.
+ * @module app
+ * @requires express
+ * @requires cors
+ * @requires ./routes/account.routes
+ * @requires ./routes/auth.routes
+ * 
+ * @description
+ * Configures Express application with:
+ * - CORS middleware (configured for production/development)
+ * - JSON and URL-encoded body parsers
+ * - Authentication routes (/api/auth)
+ * - Account routes (/api/account)
+ * - Health check endpoint (/health)
+ * - Root endpoint (/)
+ */
+
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
 import accountRoutes from "./routes/account.routes";
+import authRoutes from "./routes/auth.routes";
 
 const app: Application = express();
 
@@ -35,14 +54,42 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Rutas
-app.use("/api/account",accountRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/account", accountRoutes);
 
-// Health check endpoint
+/**
+ * Health check endpoint.
+ * 
+ * @route GET /health
+ * @description Check if server is running
+ * @access Public
+ * @returns {Object} Server status
+ * 
+ * @example
+ * // Response (200):
+ * {
+ *   "status": "ok",
+ *   "message": "Server is running"
+ * }
+ */
 app.get("/health", (_req: Request, res: Response) => {
   res.status(200).json({ status: "ok", message: "Server is running" });
 });
 
-// Root endpoint
+/**
+ * Root endpoint.
+ * 
+ * @route GET /
+ * @description API information endpoint
+ * @access Public
+ * @returns {Object} API name
+ * 
+ * @example
+ * // Response (200):
+ * {
+ *   "message": "Finance Manager Backend API"
+ * }
+ */
 app.get("/", (_req: Request, res: Response) => {
   res.status(200).json({ message: "Finance Manager Backend API" });
 });
