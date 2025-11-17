@@ -71,15 +71,21 @@ export const signup = async (req: Request, res: Response) => {
     }
 
     // Obtener o crear rol por defecto (usuario)
-    // @ts-ignore - Prisma client type generation issue
-    let defaultRole = await prisma.role.findUnique({
+    // Type assertion needed because Prisma Client types may not be fully generated
+    const prismaWithRole = prisma as typeof prisma & {
+      role: {
+        findUnique: (args: { where: { name: string } }) => Promise<{ id: number; name: string } | null>;
+        create: (args: { data: { name: string } }) => Promise<{ id: number; name: string }>;
+      };
+    };
+    
+    let defaultRole = await prismaWithRole.role.findUnique({
       where: { name: "user" },
     });
 
     if (!defaultRole) {
       // Si no existe el rol "user", crear uno
-      // @ts-ignore - Prisma client type generation issue
-      defaultRole = await prisma.role.create({
+      defaultRole = await prismaWithRole.role.create({
         data: { name: "user" },
       });
     }
@@ -88,12 +94,13 @@ export const signup = async (req: Request, res: Response) => {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     // Crear nuevo usuario
-    const newUser = await prisma.user.create({
+    // Type assertion needed for roleId field
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const newUser = await (prisma.user.create as any)({
       data: {
         email: email,
         password: hashedPassword,
         nickname: nickname,
-        // @ts-ignore - Prisma client type generation issue with roleId
         roleId: defaultRole.id,
       },
       select: {
@@ -231,6 +238,7 @@ export const login = async (req: Request, res: Response) => {
       path: "/",
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _password, ...safeUser } = user;
 
     return res.json({

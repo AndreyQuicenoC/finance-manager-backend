@@ -14,6 +14,7 @@
 // Load environment variables only in development
 // In production, variables should be set in the hosting platform (Render, Heroku, etc.)
 if (process.env.NODE_ENV !== 'production') {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   require('dotenv').config();
 }
 
@@ -64,6 +65,8 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
  * Listens on the configured PORT and logs server information.
  */
 app.listen(PORT, () => {
+  // eslint-disable-next-line no-console
   console.log(`🚀 Server is running on port ${PORT}`);
+  // eslint-disable-next-line no-console
   console.log(`📦 Environment: ${NODE_ENV}`);
 });
