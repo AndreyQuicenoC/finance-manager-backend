@@ -80,11 +80,11 @@ async function sendEmail(
      */
     await sgMail.send(msg);
 
-    console.log(`📧 Email enviado a ${to}`);
-  } catch (error: any) {
-    console.error("❌ Error enviando email:", error);
-    if (error.response) {
-      console.error("SendGrid error:", error.response.body);
+    // Email sent successfully - could be logged to monitoring service in production
+  } catch (error: unknown) {
+    console.error("Error enviando email:", error);
+    if (error && typeof error === "object" && "response" in error) {
+      console.error("SendGrid error:", (error as { response: { body: unknown } }).response.body);
     }
     throw new Error("No se pudo enviar el correo");
   }
