@@ -1,6 +1,7 @@
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import transactionsRoutes from "./routes/transactions.routes";
 
 const app: Application = express();
 
@@ -22,6 +23,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Rotes
+app.use("/api/transactions", transactionsRoutes);
 
 // Health check endpoint
 app.get("/health", (_req: Request, res: Response) => {
