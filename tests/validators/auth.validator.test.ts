@@ -31,12 +31,9 @@ const runValidationChain = async (
 describe('auth validators', () => {
   it('should pass signup validation for valid payload', async () => {
     const payload = {
-      nombres: 'Juan',
-      apellidos: 'Pérez',
-      edad: 25,
-      correoElectronico: 'juan@example.com',
-      contraseña: 'Password1!',
-      confirmarContraseña: 'Password1!',
+      email: 'juan@example.com',
+      password: 'Password1!',
+      nickname: 'juan_perez',
     };
     const { req, res } = await runValidationChain(signupValidation, payload);
     const next = jest.fn();
@@ -49,12 +46,9 @@ describe('auth validators', () => {
 
   it('should return errors when signup payload is invalid', async () => {
     const payload = {
-      nombres: '',
-      apellidos: 'P',
-      edad: 14,
-      correoElectronico: 'invalid',
-      contraseña: 'weak',
-      confirmarContraseña: 'different',
+      email: 'invalid',
+      password: 'weak',
+      nickname: 'A', // Too short
     };
     const { req, res } = await runValidationChain(signupValidation, payload);
     const next = jest.fn();
@@ -74,8 +68,8 @@ describe('auth validators', () => {
 
   it('should pass login validation with valid credentials', async () => {
     const payload = {
-      correoElectronico: 'user@example.com',
-      contraseña: 'Password1!',
+      email: 'user@example.com',
+      password: 'Password1!',
     };
     const { req, res } = await runValidationChain(loginValidation, payload);
     const next = jest.fn();
@@ -87,7 +81,7 @@ describe('auth validators', () => {
   });
 
   it('should fail login validation with missing fields', async () => {
-    const payload = { correoElectronico: '' };
+    const payload = { email: '' };
     const { req, res } = await runValidationChain(loginValidation, payload);
     const next = jest.fn();
 
