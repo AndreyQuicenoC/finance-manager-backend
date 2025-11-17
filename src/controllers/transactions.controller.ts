@@ -1,6 +1,16 @@
 import { Request, Response } from "express";
 import prisma from "../config/db";
 
+/**
+ * Reverts the financial effect of a deleted transaction and updates the related account balance.
+ * This function subtracts or adds the transaction amount depending on whether it was income or expense.
+ * It ensures that the resulting account balance does not go negative.
+ *
+ * @async
+ * @param {Response} res - Express response object used for sending error messages if needed.
+ * @param {number} transactionId - ID of the transaction to revert and delete.
+ * @returns {Promise<Response>} JSON response indicating success or error.
+ */
 const revertAccountFromDeletedTransaction = async (res: Response, transactionId: number) => {
   // Buscar la transacción con su tag y cuenta asociada
   const transaction = await prisma.transaction.findUnique({
@@ -43,7 +53,21 @@ const revertAccountFromDeletedTransaction = async (res: Response, transactionId:
   return res.status(200).json({ message: "Transacción eliminada y cuenta actualizada correctamente" });
 };
 
-
+/**
+ * Updates an account's balance based on a transaction.
+ * If updating an existing transaction, the old transaction's effect is reversed first,
+ * and then the new values are applied.
+ *
+ * @async
+ * @param {Response} res - Express response object for returning error messages.
+ * @param {Object} transaction - The transaction data to apply.
+ * @param {number} transaction.id - Transaction ID (required if `isUpdate` is true).
+ * @param {number} transaction.amount - Transaction amount.
+ * @param {boolean} transaction.isIncome - Whether the transaction is income (true) or expense (false).
+ * @param {number} transaction.tagId - Related tag ID.
+ * @param {boolean} [isUpdate=false] - Whether the operation is an update instead of a creation.
+ * @returns {Promise<Response>} JSON response confirming the update or returning validation errors.
+ */
 const updateAccountRelatedToTransaction = async (
   res: Response,
   transaction: any,
@@ -95,7 +119,18 @@ const updateAccountRelatedToTransaction = async (
 
 
 /**
- * Crear una transacción
+ * Creates a new transaction and updates the related account balance accordingly.
+ *
+ * @async
+ * @route POST /transactions
+ * @param {Request} req - Express request object containing transaction data in the body.
+ * @param {number} req.body.amount - Transaction amount.
+ * @param {boolean} req.body.isIncome - Whether the transaction is income.
+ * @param {string|Date} req.body.transactionDate - Date of the transaction.
+ * @param {string} [req.body.description] - Optional description.
+ * @param {number} req.body.tagId - ID of the associated tag.
+ * @param {Response} res - Express response object.
+ * @returns {Promise<void>}
  */
 export const createTransaction = async (req: Request, res: Response) => {
   try {
@@ -121,7 +156,13 @@ export const createTransaction = async (req: Request, res: Response) => {
 };
 
 /**
- * Obtener todas las transacciones
+ * Retrieves all transactions from the database.
+ *
+ * @async
+ * @route GET /transactions
+ * @param {Request} req - Express request object.
+ * @param {Response} res - Express response object that returns an array of transactions.
+ * @returns {Promise<void>}
  */
 export const getAllTransactions = async (req: Request, res: Response) => {
   try {
@@ -136,7 +177,13 @@ export const getAllTransactions = async (req: Request, res: Response) => {
 };
 
 /**
- * Obtener una transacción por ID
+ * Retrieves a single transaction by its ID.
+ *
+ * @async
+ * @route GET /transactions/:id
+ * @param {Request} req - Express request containing the transaction ID in params.
+ * @param {Response} res - Express response object returning a transaction or an error.
+ * @returns {Promise<void>}
  */
 export const getTransactionById = async (req: Request, res: Response) => {
   try {
@@ -157,7 +204,14 @@ export const getTransactionById = async (req: Request, res: Response) => {
 };
 
 /**
- * Actualizar una transacción
+ * Updates an existing transaction and adjusts the related account balance.
+ * Only fields sent in the request body will be updated.
+ *
+ * @async
+ * @route PUT /transactions/:id
+ * @param {Request} req - Express request object containing transaction updates.
+ * @param {Response} res - Express response object returning the updated transaction.
+ * @returns {Promise<void>}
  */
 export const updateTransaction = async (req: Request, res: Response) => {
     try {
@@ -208,7 +262,13 @@ export const updateTransaction = async (req: Request, res: Response) => {
   
 
 /**
- * Eliminar una transacción
+ * Deletes a transaction after reverting its financial effect on the account.
+ *
+ * @async
+ * @route DELETE /transactions/:id
+ * @param {Request} req - Express request containing the transaction ID.
+ * @param {Response} res - Express response object confirming deletion or sending errors.
+ * @returns {Promise<void>}
  */
 export const deleteTransaction = async (req: Request, res: Response) => {
   try {
@@ -236,7 +296,13 @@ export const deleteTransaction = async (req: Request, res: Response) => {
 };
 
 /**
- * Obtener todas las transacciones de un día específico
+ * Retrieves all transactions that occurred on a specific date.
+ *
+ * @async
+ * @route GET /transactions/by-date
+ * @param {Request} req - Express request containing the `date` query parameter.
+ * @param {Response} res - Express response object with transactions from that date.
+ * @returns {Promise<void>}
  */
 export const getTransactionsByDate = async (req: Request, res: Response) => {
   try {
@@ -266,7 +332,15 @@ export const getTransactionsByDate = async (req: Request, res: Response) => {
 };
 
 /**
- * Obtener transacciones de tipo ingreso o egreso de un día específico
+ * Retrieves transactions filtered by type (income or expense) and a specific date.
+ *
+ * @async
+ * @route GET /transactions/by-type-and-date
+ * @param {Request} req - Express request containing `date` and `type` in query.
+ * @param {string} req.query.date - Date to filter transactions.
+ * @param {"income"|"expense"} req.query.type - Type of transaction filter.
+ * @param {Response} res - Express response object returning filtered transactions.
+ * @returns {Promise<void>}
  */
 export const getTransactionsByTypeAndDate = async (req: Request, res: Response) => {
     try {
