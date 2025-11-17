@@ -1,6 +1,7 @@
 import express, { Application, Request, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import tagPocketRoutes from "./routes/tagPocket.routes";
 
 const app: Application = express();
 
@@ -22,6 +23,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Rotes
+app.use("/api/tag",tagPocketRoutes);
+
 
 // Health check endpoint
 app.get("/health", (_req: Request, res: Response) => {
