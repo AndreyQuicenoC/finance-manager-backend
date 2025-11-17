@@ -20,6 +20,7 @@ import express, { Application, Request, Response } from "express";
 import cors from "cors";
 import accountRoutes from "./routes/account.routes";
 import authRoutes from "./routes/auth.routes";
+import cookieParser from "cookie-parser";
 
 const app: Application = express();
 
@@ -56,6 +57,8 @@ app.use(express.urlencoded({ extended: true }));
 // Rutas
 app.use("/api/auth", authRoutes);
 app.use("/api/account", accountRoutes);
+// cookie parser added for send to fronted cookie
+app.use(cookieParser());
 
 /**
  * Health check endpoint.

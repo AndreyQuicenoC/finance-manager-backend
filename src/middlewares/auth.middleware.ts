@@ -19,6 +19,19 @@ declare module "express-serve-static-core" {
   }
 }
 
+// functions for generate tokens, a token for access, and other one for refresh the access one
+
+export function generateAccessToken(userId: number, email: string) {
+  const ACCESS_SECRET = process.env.ACCESS_SECRET as string;
+  return jwt.sign({ id: userId, email }, ACCESS_SECRET, { expiresIn: "15m" });
+}
+
+// Genera refresh tokens (válidos por 7 días)
+export function generateRefreshToken(userId: number) {
+  const REFRESH_SECRET = process.env.REFRESH_SECRET as string;
+  return jwt.sign({ id: userId }, REFRESH_SECRET, { expiresIn: "7d" });
+}
+
 /**
  * Middleware function to verify and validate JWT tokens from HTTP-only cookies.
  * Extracts token from cookie, verifies it, and adds user data to request.

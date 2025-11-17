@@ -59,8 +59,14 @@ async function sendEmail(
       throw new Error("SENDGRID_FROM_EMAIL no está configurada");
     }
 
+    /**
+     * Configure SendGrid with API key
+     */
     sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
+    /**
+     * Prepare email message
+     */
     const msg = {
       to: to,
       from: process.env.SENDGRID_FROM_EMAIL,
@@ -69,6 +75,9 @@ async function sendEmail(
       html: `<p>${text.replaceAll("\n", "<br>")}</p>`,
     };
 
+    /**
+     * Send email via SendGrid API
+     */
     await sgMail.send(msg);
   } catch (error: unknown) {
     console.error("Error enviando email:", error);
