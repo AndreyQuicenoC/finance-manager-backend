@@ -8,17 +8,26 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Role {
+  id      Int @id @default(autoincrement())
+  name    String @unique
+  user    User[]
+}
+
 model User {
   id         Int           @id @default(autoincrement())
   email      String        @unique
   nickname   String?
   password   String
+  roleId     Int
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 
   // Relaciones
-  session   UserSession[]
-  accounts   Account[]
+  session         UserSession[]
+  accounts        Account[]
+  passwordReset   PasswordReset[]
+  role            Role @relation(fields: [roleId], references: [id])
 }
 
 model UserSession {
@@ -35,16 +44,19 @@ model UserSession {
   revoke        Boolean @default(false)
   replaceBy     String?
   
+  // Relaciones
   user          User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, deviceId])
 }
 
 model Category {
   id         Int       @id @default(autoincrement())
-  Isincome Boolean
   tipo       String    
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
+  // Relaciones
   accounts   Account[]
 }
 
@@ -53,26 +65,26 @@ model Account {
   name       String?
   money      Float     @default(0)
   userId     Int
+  description String?
   categoryId Int
   createdAt  DateTime  @default(now())
 
-  user       User      @relation(fields: [userId], references: [id])
-  category   Category  @relation(fields: [categoryId], references: [id])
-  tags       TagPocket[]
-  reports    Report[]
+  // Relaciones
+  user          User      @relation(fields: [userId], references: [id])
+  category      Category  @relation(fields: [categoryId], references: [id])
+  reports       Report[]
+  chats         Chat[]
+  tags          TagPocket[]
 }
 
 model TagPocket {
   id          Int           @id @default(autoincrement())
   name        String
   description String?
-  accountId   Int
+  accountId      Int
 
-  account     Account       @relation(fields: [accountId], references: [id])
+  account      Account @relation(fields: [accountId], references: [id])
   transactions Transaction[]
-  goals       Goal[]
-  chats       Chat[]
-  notifications Notifications[]
 }
 
 model Transaction {
@@ -83,34 +95,39 @@ model Transaction {
   description    String?
   tagId          Int
 
+  // Relaciones
   tag            TagPocket @relation(fields: [tagId], references: [id])
 }
 
-model Goal {
-  id             Int        @id @default(autoincrement())
-  description    String
-  init_date      DateTime?
-  final_date     DateTime?
-  actual_progress Float?
-  goalUnitId     Int
-  tagId          Int?
+model GoalTarget {
 
-  goalUnit       GoalUnit   @relation(fields: [goalUnitId], references: [id])
-  tag            TagPocket? @relation(fields: [tagId], references: [id])
+  id          Int @id @default(autoincrement())
+  goalId      Int
+  targetType  String  // guarda si es account o si es tag 
+  targetId    Int     // dependiendo del tipo busca en esas tablas
+
+  goal        Goal @relation(fields: [goalId], references: [id])
 }
 
-model GoalUnit {
-  id       Int     @id @default(autoincrement())
-  name     String  @unique
-  amount   Float
+model Goal {
+  id              Int        @id @default(autoincrement())
+  description     String
+  init_date       DateTime
+  final_date      DateTime
+  max_money       Float
+  actual_progress Float
 
-  goals    Goal[]
+  // Relaciones
+  target          GoalTarget[]
+
 }
 
 model Period {
   id          Int      @id @default(autoincrement())
   name        String   @unique
   description String
+
+  // Relaciones
   reports     Report[]
 }
 
@@ -120,35 +137,40 @@ model Report {
   accountId  Int
   periodId   Int
 
+  // Relaciones
   account    Account @relation(fields: [accountId], references: [id])
   period     Period  @relation(fields: [periodId], references: [id])
 }
 
 model Chat {
   id          Int                  @id @default(autoincrement())
-  tagPocketId Int
+  accountId   Int
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
-  tagPocket   TagPocket            @relation(fields: [tagPocketId], references: [id])
-  messages    Chat_recommendation[]
+  // Relaciones
+  account     Account @relation(fields: [accountId], references: [id])
+  messages    Message[]
 }
 
-model Chat_recommendation {
+model Message {
   id              Int      @id @default(autoincrement())
   message_send    String
   answers_message String
   chatId          Int
 
+  // Relaciones
   chat            Chat     @relation(fields: [chatId], references: [id])
 }
 
-model Notifications {
-  id            Int     @id @default(autoincrement())
-  title         String
-  message       String
-  tagPocketId   Int
+model PasswordReset {
+  id         Int      @id @default(autoincrement())
+  token      String   @unique
+  userId     Int
+  expiresAt  DateTime
+  used       Boolean  @default(false)
 
-  tagPocket     TagPocket @relation(fields: [tagPocketId], references: [id])
-
+  // Relaciones
+  user       User     @relation(fields: [userId], references: [id])
 }
+
