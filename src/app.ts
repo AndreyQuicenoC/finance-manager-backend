@@ -7,12 +7,24 @@ const app: Application = express();
 
 // Middleware
 
-// cors configuration added
+// CORS configuration with whitelist for security
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:5173", 
-    credentials: true, 
-    optionsSuccessStatus: 200
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+    optionsSuccessStatus: 200,
   })
 );
 

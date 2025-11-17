@@ -164,15 +164,15 @@ export const createTransaction = async (req: Request, res: Response) => {
  * @param {Response} res - Express response object that returns an array of transactions.
  * @returns {Promise<void>}
  */
-export const getAllTransactions = async (req: Request, res: Response) => {
+export const getAllTransactions = async (_req: Request, res: Response) => {
   try {
     const transactions = await prisma.transaction.findMany({
       include: { tag: true },
     });
-    res.json(transactions);
+    return res.json(transactions);
   } catch (error) {
     console.error("Error obteniendo transacciones:", error);
-    res.status(500).json({ error: "Error al obtener transacciones" });
+    return res.status(500).json({ error: "Error al obtener transacciones" });
   }
 };
 
@@ -196,10 +196,10 @@ export const getTransactionById = async (req: Request, res: Response) => {
     if (!transaction)
       return res.status(404).json({ error: "Transacción no encontrada" });
 
-    res.json(transaction);
+    return res.json(transaction);
   } catch (error) {
     console.error("Error obteniendo transacción:", error);
-    res.status(500).json({ error: "Error al obtener transacción" });
+    return res.status(500).json({ error: "Error al obtener transacción" });
   }
 };
 
@@ -250,13 +250,13 @@ export const updateTransaction = async (req: Request, res: Response) => {
 
       await updateAccountRelatedToTransaction(res,updated,true);
   
-      res.json({
+      return res.json({
         message: "Transacción actualizada correctamente",
         transaction: updated,
       });
     } catch (error) {
       console.error("Error actualizando transacción:", error);
-      res.status(500).json({ error: "Error al actualizar la transacción" });
+      return res.status(500).json({ error: "Error al actualizar la transacción" });
     }
   };
   
@@ -288,10 +288,10 @@ export const deleteTransaction = async (req: Request, res: Response) => {
       where: { id: Number(id) },
     });
 
-    res.json({ message: "Transacción eliminada" });
+    return res.json({ message: "Transacción eliminada" });
   } catch (error) {
     console.error("Error eliminando transacción:", error);
-    res.status(500).json({ error: "Error al eliminar transacción" });
+    return res.status(500).json({ error: "Error al eliminar transacción" });
   }
 };
 
@@ -324,10 +324,10 @@ export const getTransactionsByDate = async (req: Request, res: Response) => {
       include: { tag: true },
     });
 
-    res.json(transactions);
+    return res.json(transactions);
   } catch (error) {
     console.error("Error obteniendo transacciones por fecha:", error);
-    res.status(500).json({ error: "Error al obtener transacciones" });
+    return res.status(500).json({ error: "Error al obtener transacciones" });
   }
 };
 
@@ -374,10 +374,10 @@ export const getTransactionsByTypeAndDate = async (req: Request, res: Response) 
         },
       });
   
-      res.json(transactions);
+      return res.json(transactions);
     } catch (error) {
       console.error("Error obteniendo transacciones por tipo y fecha:", error);
-      res.status(500).json({ error: "Error al obtener transacciones" });
+      return res.status(500).json({ error: "Error al obtener transacciones" });
     }
   };
   
