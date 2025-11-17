@@ -84,7 +84,6 @@ export const signup = async (req: Request, res: Response) => {
     });
 
     if (!defaultRole) {
-      // Si no existe el rol "user", crear uno
       defaultRole = await prismaWithRole.role.create({
         data: { name: "user" },
       });
@@ -180,18 +179,16 @@ export const signup = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     const { correoElectronico, email, contraseña, password } = req.body ?? {};
-    const emailInput =
-      typeof correoElectronico === "string"
-        ? correoElectronico
-        : typeof email === "string"
-        ? email
-        : "";
-    const passwordInput =
-      typeof contraseña === "string"
-        ? contraseña
-        : typeof password === "string"
-        ? password
-        : "";
+    
+    // Extract email input with clearer logic
+    const emailInput = typeof correoElectronico === "string" 
+      ? correoElectronico 
+      : (typeof email === "string" ? email : "");
+    
+    // Extract password input with clearer logic
+    const passwordInput = typeof contraseña === "string" 
+      ? contraseña 
+      : (typeof password === "string" ? password : "");
 
     if (!emailInput || !passwordInput) {
       return res.status(400).json({
@@ -540,6 +537,7 @@ export const resetPass = async (req: Request, res: Response) => {
     try {
       decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
     } catch (error) {
+      console.error("Invalid or expired reset token:", error);
       return res.status(400).json({
         message: "Token inválido o expirado",
       });

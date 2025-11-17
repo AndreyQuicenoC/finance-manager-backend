@@ -59,35 +59,21 @@ async function sendEmail(
       throw new Error("SENDGRID_FROM_EMAIL no está configurada");
     }
 
-    /**
-     * Configure SendGrid with API key
-     */
     sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-    /**
-     * Prepare email message
-     */
     const msg = {
       to: to,
       from: process.env.SENDGRID_FROM_EMAIL,
       subject: subject,
       text: text,
-      html: `<p>${text.replace(/\n/g, "<br>")}</p>`,
+      html: `<p>${text.replaceAll("\n", "<br>")}</p>`,
     };
 
-    /**
-     * Send email via SendGrid API
-     */
     await sgMail.send(msg);
-
-    //console.log(`📧 Email enviado a ${to}`);
   } catch (error: unknown) {
-    console.error("❌ Error enviando email:", error);
-    if (error && typeof error === 'object' && 'response' in error) {
-      const sendGridError = error as { response?: { body?: unknown } };
-      if (sendGridError.response?.body) {
-        console.error("SendGrid error:", sendGridError.response.body);
-      }
+    console.error("Error enviando email:", error);
+    if (error && typeof error === "object" && "response" in error) {
+      console.error("SendGrid error:", (error as { response: { body: unknown } }).response.body);
     }
     throw new Error("No se pudo enviar el correo");
   }
@@ -99,3 +85,4 @@ async function sendEmail(
  * @type {Function}
  */
 export default sendEmail;
+
