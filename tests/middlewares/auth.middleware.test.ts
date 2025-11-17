@@ -7,7 +7,10 @@
 import { describe, expect, it, beforeEach, jest } from '@jest/globals';
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import verifyToken from '../../src/middlewares/auth.middleware';
+import verifyToken, {
+  generateAccessToken,
+  generateRefreshToken,
+} from '../../src/middlewares/auth.middleware';
 
 /**
  * Mock jsonwebtoken library to control token verification
@@ -16,11 +19,14 @@ jest.mock('jsonwebtoken', () => ({
   __esModule: true,
   default: {
     verify: jest.fn(),
+    sign: jest.fn(),
   },
 }));
 
 /** Typed mock of JWT library */
-const jwtMock = jwt as jest.Mocked<typeof jwt>;
+const jwtMock = jwt as jest.Mocked<typeof jwt> & {
+  sign: jest.MockedFunction<(payload: any, secret: string, options: any) => string>;
+};
 
 /**
  * Creates a fresh set of Express request, response, and next function mocks
@@ -156,6 +162,49 @@ describe('verifyToken middleware', () => {
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({
       message: 'Inténtalo de nuevo más tarde',
+    });
+  });
+});
+
+/**
+ * Test suite for token generation functions
+ */
+describe('Token Generation', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.ACCESS_SECRET = 'access-secret';
+    process.env.REFRESH_SECRET = 'refresh-secret';
+  });
+
+  describe('generateAccessToken', () => {
+    it('should generate an access token with user id and email', () => {
+      jwtMock.sign.mockReturnValueOnce('mock-access-token');
+      const token = generateAccessToken(123, 'user@example.com');
+
+      expect(token).toBe('mock-access-token');
+      expect(typeof token).toBe('string');
+      // Verify JWT sign was called with correct parameters
+      expect(jwtMock.sign).toHaveBeenCalledWith(
+        { id: 123, email: 'user@example.com' },
+        'access-secret',
+        { expiresIn: '15m' }
+      );
+    });
+  });
+
+  describe('generateRefreshToken', () => {
+    it('should generate a refresh token with user id', () => {
+      jwtMock.sign.mockReturnValueOnce('mock-refresh-token');
+      const token = generateRefreshToken(456);
+
+      expect(token).toBe('mock-refresh-token');
+      expect(typeof token).toBe('string');
+      // Verify JWT sign was called with correct parameters
+      expect(jwtMock.sign).toHaveBeenCalledWith(
+        { id: 456 },
+        'refresh-secret',
+        { expiresIn: '7d' }
+      );
     });
   });
 });

@@ -138,6 +138,60 @@ describe('AuthController', () => {
       });
     });
 
+    it('should create default role when it does not exist', async () => {
+      const req = {
+        body: { nickname: 'NewUser', email: 'new@example.com', password: 'Secret123!' },
+      } as Request;
+      const res = createMockResponse();
+      
+      // Mock: user doesn't exist
+      prismaMock.user.findUnique.mockResolvedValueOnce(null);
+      
+      // Mock: role doesn't exist, then create it
+      prismaMock.role.findUnique.mockResolvedValueOnce(null);
+      const createdRole = { id: 1, name: 'user' };
+      prismaMock.role.create.mockResolvedValueOnce(createdRole);
+      
+      // Mock: password hashing
+      bcryptMock.hash.mockResolvedValueOnce('hashed');
+      
+      // Mock: user creation
+      const createdUser = {
+        id: 1,
+        email: 'new@example.com',
+        nickname: 'NewUser',
+        createdAt: new Date(),
+      };
+      prismaMock.user.create.mockResolvedValueOnce(createdUser);
+      
+      // Mock: JWT token generation
+      jwtMock.sign.mockReturnValueOnce('token');
+
+      await signup(req, res);
+
+      expect(prismaMock.role.findUnique).toHaveBeenCalledWith({
+        where: { name: 'user' },
+      });
+      expect(prismaMock.role.create).toHaveBeenCalledWith({
+        data: { name: 'user' },
+      });
+      expect(prismaMock.user.create).toHaveBeenCalledWith({
+        data: {
+          email: 'new@example.com',
+          password: 'hashed',
+          nickname: 'NewUser',
+          roleId: 1,
+        },
+        select: {
+          id: true,
+          email: true,
+          nickname: true,
+          createdAt: true,
+        },
+      });
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
     it('should return 400 if email already exists', async () => {
       const req = {
         body: { nickname: 'Nick', email: 'nick@example.com', password: 'Secret123!' },
@@ -465,6 +519,23 @@ describe('AuthController', () => {
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({ message: 'Las contraseñas no coinciden' });
+    });
+
+    it('should return 400 when password does not meet strength requirements', async () => {
+      const req = {
+        params: { token: 'token' },
+        body: { password: 'weak', confirmPassword: 'weak' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      jwtMock.verify.mockReturnValueOnce({ userId: 1 });
+
+      await resetPass(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message:
+          'La contraseña debe tener al menos 8 caracteres, mayúscula, minúscula, número y carácter especial',
+      });
     });
 
     it('should return 404 when decoded user does not exist', async () => {

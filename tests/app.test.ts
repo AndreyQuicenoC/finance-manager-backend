@@ -46,4 +46,23 @@ describe('App', () => {
       expect(response.body).toHaveProperty('message', 'Server is running');
     });
   });
+
+  /**
+   * Test suite for CORS configuration
+   */
+  describe('CORS', () => {
+    /**
+     * Verifies that requests from disallowed origins are rejected
+     * @test CORS rejection
+     */
+    it('should reject requests from disallowed origins', async () => {
+      const response = await request(app)
+        .get('/')
+        .set('Origin', 'http://malicious-site.com');
+
+      // CORS error should prevent the request from completing normally
+      // The exact behavior depends on CORS implementation, but it should not succeed
+      expect(response.status).not.toBe(200);
+    });
+  });
 });
