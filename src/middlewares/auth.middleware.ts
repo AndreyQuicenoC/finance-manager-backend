@@ -86,8 +86,6 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
       return res.status(401).json({ message: "Invalid token payload" });
     }
 
-    //console.log("✅ Usuario autenticado:", (decoded as any).userId);
-
     /**
      * Continue to next middleware or route handler.
      */
