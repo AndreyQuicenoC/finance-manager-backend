@@ -1,6 +1,21 @@
 import { Request, Response } from "express";
 import prisma from "../config/db";
 
+interface TransactionData {
+  id?: number;
+  amount: number;
+  isIncome: boolean;
+  tagId: number;
+}
+
+interface TransactionUpdateData {
+  amount?: number;
+  isIncome?: boolean;
+  transactionDate?: Date;
+  description?: string;
+  tagId?: number;
+}
+
 /**
  * Reverts the financial effect of a deleted transaction and updates the related account balance.
  * This function subtracts or adds the transaction amount depending on whether it was income or expense.
@@ -70,7 +85,7 @@ const revertAccountFromDeletedTransaction = async (res: Response, transactionId:
  */
 const updateAccountRelatedToTransaction = async (
   res: Response,
-  transaction: any,
+  transaction: TransactionData,
   isUpdate = false
 ) => {
   const tag = await prisma.tagPocket.findUnique({
@@ -230,7 +245,7 @@ export const updateTransaction = async (req: Request, res: Response) => {
         return res.status(404).json({ error: "Transacción no encontrada" });
       }
   
-      const dataToUpdate: any = {};
+      const dataToUpdate: TransactionUpdateData = {};
   
       if (amount !== undefined) dataToUpdate.amount = amount;
       if (isIncome !== undefined) dataToUpdate.isIncome = isIncome;
