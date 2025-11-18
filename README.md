@@ -87,6 +87,52 @@ npm run test:coverage
 - Coverage file: `coverage/lcov.info`
 - Configuration: `sonar-project.properties`
 
+### SonarCloud Metrics
+
+The following metrics are automatically measured on every push/PR:
+
+#### 📈 **Cyclomatic Complexity**
+- **Threshold**: Maximum 10 per function
+- **What it measures**: Number of independent paths through code
+- **Goal**: Keep functions simple and maintainable
+- **How to improve**: Break complex functions into smaller ones
+
+#### 🎯 **Code Coverage**
+- **Minimum Required**: 60%
+- **Project Target**: 80%
+- **What it measures**: Percentage of code executed by tests
+- **View report**: `coverage/lcov-report/index.html`
+
+#### 🔄 **Code Duplication**
+- **Threshold**: Minimal duplication allowed
+- **What it measures**: Repeated code blocks
+- **How to improve**: Extract common code into reusable functions
+
+#### 🛠️ **Technical Debt**
+- **What it measures**: Estimated time to fix all code issues
+- **Goal**: Keep it minimal
+- **Categories**: Bugs, Vulnerabilities, Code Smells
+
+#### 👃 **Code Smells**
+- **What it measures**: Maintainability issues
+- **Examples**: Long functions, too many parameters, complex conditionals
+- **How to improve**: Refactor following clean code principles
+
+#### 🐛 **Reliability Rating**
+- **Target**: A (highest)
+- **What it measures**: Bug density and severity
+
+#### 🔒 **Security Rating**
+- **Target**: A (highest)
+- **What it measures**: Vulnerability density and severity
+
+### Viewing SonarCloud Dashboard
+
+1. Go to [SonarCloud](https://sonarcloud.io/)
+2. Navigate to project: `IvanAusechaS/finance-manager-backend`
+3. View all metrics, trends, and issues
+
+
 ## 🔧 Available Scripts
 
 | Command | Description |

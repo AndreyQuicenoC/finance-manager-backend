@@ -76,10 +76,5 @@ async function sendEmail(
   }
 }
 
-/**
- * Export the sendEmail function as the main module export.
- * @module sendEmail
- * @type {Function}
- */
 export default sendEmail;
 

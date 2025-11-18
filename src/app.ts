@@ -22,6 +22,7 @@ import accountRoutes from "./routes/account.routes";
 import authRoutes from "./routes/auth.routes";
 import cookieParser from "cookie-parser";
 import categoryRoutes from "./routes/category.routes";
+import transactionsRoutes from "./routes/transactions.routes";
 
 const app: Application = express();
 
@@ -78,6 +79,7 @@ app.use(cookieParser());
  */
 // Rotes
 app.use("/api/category",categoryRoutes);
+app.use("/api/transactions", transactionsRoutes);
 
 // Health check endpoint
 app.get("/health", (_req: Request, res: Response) => {
