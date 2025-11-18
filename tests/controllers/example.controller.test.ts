@@ -61,19 +61,23 @@ describe('ExampleController', () => {
     });
 
     /**
-     * Verifies error handling when response status throws
+     * Verifies error handling when an error occurs
      * @test {GET /api/examples} - Error scenario
      */
     it('should return 500 on error', () => {
-      mockResponse.status = jest.fn().mockImplementationOnce(() => {
+      // Mock json to throw an error to trigger catch block
+      const originalJson = mockResponse.json;
+      mockResponse.json = jest.fn().mockImplementationOnce(() => {
         throw new Error('Test error');
-      }) as unknown as Response['status'];
+      }) as unknown as Response['json'];
 
-      try {
-        controller.getAll(mockRequest as Request, mockResponse as Response);
-      } catch (error) {
-        expect(error).toBeDefined();
-      }
+      controller.getAll(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Internal server error' });
+      
+      // Restore original
+      mockResponse.json = originalJson;
     });
   });
 
@@ -143,6 +147,53 @@ describe('ExampleController', () => {
 
       expect(mockResponse.status).toHaveBeenCalledWith(400);
       expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Name is required' });
+    });
+
+    /**
+     * Verifies error handling when an error occurs
+     * @test {POST /api/examples} - Error scenario
+     */
+    it('should return 500 on error', () => {
+      mockRequest.body = { name: 'Test' };
+      // Mock json to throw an error to trigger catch block
+      const originalJson = mockResponse.json;
+      mockResponse.json = jest.fn().mockImplementationOnce(() => {
+        throw new Error('Test error');
+      }) as unknown as Response['json'];
+
+      controller.create(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Internal server error' });
+      
+      // Restore original
+      mockResponse.json = originalJson;
+    });
+  });
+
+  /**
+   * Test suite for error handling in getById
+   */
+  describe('getById error handling', () => {
+    /**
+     * Verifies error handling when an error occurs
+     * @test {GET /api/examples/:id} - Error scenario
+     */
+    it('should return 500 on error', () => {
+      mockRequest.params = { id: '1' };
+      // Mock json to throw an error to trigger catch block
+      const originalJson = mockResponse.json;
+      mockResponse.json = jest.fn().mockImplementationOnce(() => {
+        throw new Error('Test error');
+      }) as unknown as Response['json'];
+
+      controller.getById(mockRequest as Request, mockResponse as Response);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Internal server error' });
+      
+      // Restore original
+      mockResponse.json = originalJson;
     });
   });
 });

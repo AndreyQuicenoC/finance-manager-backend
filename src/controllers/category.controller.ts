@@ -13,16 +13,15 @@ import prisma from "../config/db";
  */
 export const createCategory = async (req: Request, res: Response) => {
   try {
-    const { tipo, Isincome } = req.body;
+    const { tipo } = req.body;
 
-    if (!tipo || Isincome === undefined) {
-      return res.status(400).json({ error: "Faltan los campos 'tipo' e 'Isincome'" });
+    if (!tipo || typeof tipo !== 'string') {
+      return res.status(400).json({ error: "Falta el campo 'tipo'" });
     }
 
     const category = await prisma.category.create({
       data: {
-        tipo,
-        Isincome: Boolean(Isincome),
+        tipo: tipo as string,
       },
     });
 
