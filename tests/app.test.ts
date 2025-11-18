@@ -52,6 +52,41 @@ describe('App', () => {
    */
   describe('CORS', () => {
     /**
+     * Verifies that requests from allowed origins are accepted
+     * @test CORS acceptance
+     */
+    it('should accept requests from allowed origins', async () => {
+      const response = await request(app)
+        .get('/')
+        .set('Origin', 'http://localhost:3000');
+
+      // CORS should allow the request from allowed origin
+      expect(response.status).toBe(200);
+    });
+
+    /**
+     * Verifies that requests from localhost:5173 are accepted
+     * @test CORS acceptance for Vite dev server
+     */
+    it('should accept requests from localhost:5173', async () => {
+      const response = await request(app)
+        .get('/')
+        .set('Origin', 'http://localhost:5173');
+
+      expect(response.status).toBe(200);
+    });
+
+    /**
+     * Verifies that requests with no origin are accepted
+     * @test CORS acceptance for no origin
+     */
+    it('should accept requests with no origin', async () => {
+      const response = await request(app).get('/');
+
+      expect(response.status).toBe(200);
+    });
+
+    /**
      * Verifies that requests from disallowed origins are rejected
      * @test CORS rejection
      */
