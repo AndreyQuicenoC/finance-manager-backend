@@ -166,6 +166,64 @@ describe('TransactionsController', () => {
       });
     });
 
+    it('should return 404 when tag or account is not found', async () => {
+      const req = {
+        body: {
+          amount: 100,
+          isIncome: true,
+          transactionDate: '2024-01-01',
+          tagId: 1,
+        },
+      } as Request;
+      const res = createMockResponse();
+      const createdTransaction = {
+        id: 1,
+        amount: 100,
+        isIncome: true,
+        tagId: 1,
+      };
+      prismaMock.transaction.create.mockResolvedValueOnce(createdTransaction as any);
+      prismaMock.tagPocket.findUnique.mockResolvedValueOnce(null);
+
+      await createTransaction(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Cuenta o tag no encontrada',
+      });
+    });
+
+    it('should return 409 when account would have negative balance', async () => {
+      const req = {
+        body: {
+          amount: 1000,
+          isIncome: false, // gasto
+          transactionDate: '2024-01-01',
+          tagId: 1,
+        },
+      } as Request;
+      const res = createMockResponse();
+      const createdTransaction = {
+        id: 1,
+        amount: 1000,
+        isIncome: false,
+        tagId: 1,
+      };
+      const tag = {
+        id: 1,
+        account: { id: 1, money: 500 }, // saldo insuficiente
+      };
+      prismaMock.transaction.create.mockResolvedValueOnce(createdTransaction as any);
+      prismaMock.tagPocket.findUnique.mockResolvedValueOnce(tag as any);
+
+      await createTransaction(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Dinero insuficiente en la cuenta',
+      });
+    });
+
     it('should return 500 when creation fails', async () => {
       const req = {
         body: {
@@ -233,6 +291,195 @@ describe('TransactionsController', () => {
       expect(res.json).toHaveBeenCalledWith({ error: 'No se enviaron campos para actualizar' });
     });
 
+    it('should update transaction and account when old transaction is found', async () => {
+      const req = {
+        params: { id: '1' },
+        body: { amount: 200, isIncome: true, tagId: 1 },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const existing = {
+        id: 1,
+        amount: 100,
+        isIncome: true,
+        tagId: 1,
+      };
+      const updated = {
+        id: 1,
+        amount: 200,
+        isIncome: true,
+        tagId: 1,
+      };
+      const oldTransaction = {
+        id: 1,
+        amount: 100,
+        isIncome: false, // era gasto
+        tagId: 1,
+      };
+      const tag = {
+        id: 1,
+        account: { id: 1, money: 1000 },
+      };
+      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.transaction.update.mockResolvedValueOnce(updated as any);
+      prismaMock.tagPocket.findUnique.mockResolvedValueOnce(tag as any);
+      prismaMock.transaction.findUnique.mockResolvedValueOnce(oldTransaction as any);
+      prismaMock.account.update.mockResolvedValueOnce({} as any);
+
+      await updateTransaction(req, res);
+
+      expect(prismaMock.transaction.update).toHaveBeenCalled();
+      expect(prismaMock.tagPocket.findUnique).toHaveBeenCalled();
+      expect(prismaMock.transaction.findUnique).toHaveBeenCalledTimes(2); // una para existing, otra para oldTransaction
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Transacción actualizada correctamente',
+        transaction: updated,
+      });
+    });
+
+    it('should return 404 when old transaction is not found during update', async () => {
+      const req = {
+        params: { id: '1' },
+        body: { amount: 200, tagId: 1 },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const existing = {
+        id: 1,
+        amount: 100,
+        isIncome: true,
+        tagId: 1,
+      };
+      const updated = {
+        id: 1,
+        amount: 200,
+        isIncome: true,
+        tagId: 1,
+      };
+      const tag = {
+        id: 1,
+        account: { id: 1, money: 1000 },
+      };
+      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.transaction.update.mockResolvedValueOnce(updated as any);
+      prismaMock.tagPocket.findUnique.mockResolvedValueOnce(tag as any);
+      prismaMock.transaction.findUnique.mockResolvedValueOnce(null); // oldTransaction no encontrada
+
+      await updateTransaction(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Transacción anterior no encontrada',
+      });
+    });
+
+    it('should return 404 when tag or account is not found during update', async () => {
+      const req = {
+        params: { id: '1' },
+        body: { amount: 200, tagId: 1 },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const existing = {
+        id: 1,
+        amount: 100,
+        isIncome: true,
+        tagId: 1,
+      };
+      const updated = {
+        id: 1,
+        amount: 200,
+        isIncome: true,
+        tagId: 1,
+      };
+      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.transaction.update.mockResolvedValueOnce(updated as any);
+      prismaMock.tagPocket.findUnique.mockResolvedValueOnce(null);
+
+      await updateTransaction(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Cuenta o tag no encontrada',
+      });
+    });
+
+    it('should return 409 when update would leave negative balance', async () => {
+      const req = {
+        params: { id: '1' },
+        body: { amount: 2000, isIncome: false, tagId: 1 }, // gasto grande
+      } as unknown as Request;
+      const res = createMockResponse();
+      const existing = {
+        id: 1,
+        amount: 100,
+        isIncome: true,
+        tagId: 1,
+      };
+      const updated = {
+        id: 1,
+        amount: 2000,
+        isIncome: false,
+        tagId: 1,
+      };
+      const oldTransaction = {
+        id: 1,
+        amount: 100,
+        isIncome: true, // era ingreso
+        tagId: 1,
+      };
+      const tag = {
+        id: 1,
+        account: { id: 1, money: 500 }, // saldo insuficiente
+      };
+      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.transaction.update.mockResolvedValueOnce(updated as any);
+      prismaMock.tagPocket.findUnique.mockResolvedValueOnce(tag as any);
+      prismaMock.transaction.findUnique.mockResolvedValueOnce(oldTransaction as any);
+
+      await updateTransaction(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Dinero insuficiente en la cuenta',
+      });
+    });
+
+    it('should handle transactionDate update', async () => {
+      const req = {
+        params: { id: '1' },
+        body: { transactionDate: '2024-02-01' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const existing = {
+        id: 1,
+        amount: 100,
+        isIncome: true,
+        tagId: 1,
+      };
+      const updated = {
+        id: 1,
+        amount: 100,
+        isIncome: true,
+        tagId: 1,
+        transactionDate: new Date('2024-02-01'),
+      };
+      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.transaction.update.mockResolvedValueOnce(updated as any);
+      prismaMock.tagPocket.findUnique.mockResolvedValueOnce({
+        id: 1,
+        account: { id: 1, money: 1000 },
+      } as any);
+      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.account.update.mockResolvedValueOnce({} as any);
+
+      await updateTransaction(req, res);
+
+      expect(prismaMock.transaction.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: {
+          transactionDate: new Date('2024-02-01'),
+        },
+      });
+    });
+
     it('should return 500 when update fails', async () => {
       const req = {
         params: { id: '1' },
@@ -267,6 +514,103 @@ describe('TransactionsController', () => {
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({ error: 'Transacción no encontrada' });
+    });
+
+    it('should return 404 when transaction tag or account is not found', async () => {
+      const req = {
+        params: { id: '1' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const transaction = {
+        id: 1,
+        amount: 100,
+        isIncome: true,
+        tagId: 1,
+      };
+      prismaMock.transaction.findUnique.mockResolvedValueOnce(transaction as any);
+      // Simular que no se encuentra el tag o account
+      prismaMock.transaction.findUnique.mockResolvedValueOnce({
+        id: 1,
+        tag: null,
+      } as any);
+
+      await deleteTransaction(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Transacción, tag o cuenta no encontrada',
+      });
+    });
+
+    it('should return 409 when deletion would leave negative balance', async () => {
+      const req = {
+        params: { id: '1' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const transaction = {
+        id: 1,
+        amount: 100,
+        isIncome: true,
+        tagId: 1,
+      };
+      prismaMock.transaction.findUnique.mockResolvedValueOnce(transaction as any);
+      // Simular transacción con tag y account, pero el saldo quedaría negativo
+      prismaMock.transaction.findUnique.mockResolvedValueOnce({
+        id: 1,
+        amount: 1000,
+        isIncome: true, // es ingreso, al revertir se resta
+        tag: {
+          id: 1,
+          account: {
+            id: 1,
+            money: 500, // saldo actual menor que el monto a revertir
+          },
+        },
+      } as any);
+
+      await deleteTransaction(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'La eliminación deja el saldo en negativo',
+      });
+    });
+
+    it('should successfully delete transaction and update account', async () => {
+      const req = {
+        params: { id: '1' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const transaction = {
+        id: 1,
+        amount: 100,
+        isIncome: true,
+        tagId: 1,
+      };
+      prismaMock.transaction.findUnique.mockResolvedValueOnce(transaction as any);
+      // Simular transacción con tag y account, saldo suficiente
+      prismaMock.transaction.findUnique.mockResolvedValueOnce({
+        id: 1,
+        amount: 100,
+        isIncome: false, // es gasto, al revertir se suma
+        tag: {
+          id: 1,
+          account: {
+            id: 1,
+            money: 1000, // saldo suficiente
+          },
+        },
+      } as any);
+      prismaMock.account.update.mockResolvedValueOnce({} as any);
+      prismaMock.transaction.delete.mockResolvedValueOnce({} as any);
+
+      await deleteTransaction(req, res);
+
+      expect(prismaMock.account.update).toHaveBeenCalled();
+      expect(prismaMock.transaction.delete).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Transacción eliminada',
+      });
     });
 
     it('should return 500 when deletion fails', async () => {

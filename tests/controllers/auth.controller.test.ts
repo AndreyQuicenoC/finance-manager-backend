@@ -274,6 +274,35 @@ describe('AuthController', () => {
       });
     });
 
+    it('should authenticate user using correoElectronico and contraseña', async () => {
+      const req = {
+        body: { correoElectronico: 'user@example.com', contraseña: 'Secret123!' },
+      } as Request;
+      const res = createMockResponse();
+      const user = {
+        id: 1,
+        email: 'user@example.com',
+        password: 'hashedPassword',
+        nickname: 'User',
+        createdAt: new Date(),
+      };
+      prismaMock.user.findUnique.mockResolvedValueOnce(user);
+      bcryptMock.compare.mockResolvedValueOnce(true);
+      jwtMock.sign.mockReturnValueOnce('jwt-token');
+
+      await login(req, res);
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'user@example.com' },
+        select: expect.any(Object),
+      });
+      expect(res.cookie).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Inicio de sesión exitoso',
+        user: expect.objectContaining({ email: 'user@example.com' }),
+      });
+    });
+
     it('should return 401 when password is invalid', async () => {
       const req = {
         body: { email: 'user@example.com', password: 'wrong' },
@@ -349,7 +378,7 @@ describe('AuthController', () => {
       expect(res.json).toHaveBeenCalledWith({ error: 'No autenticado' });
     });
 
-    it('should return user profile when exists', async () => {
+    it('should return user profile when exists with string userId', async () => {
       const req = { user: { userId: '5' } } as unknown as Request;
       const res = createMockResponse();
       const user = { id: 5, email: 'user@example.com', nickname: 'User', createdAt: new Date() };
@@ -367,6 +396,37 @@ describe('AuthController', () => {
         },
       });
       expect(res.json).toHaveBeenCalledWith({ user });
+    });
+
+    it('should return user profile when exists with number userId', async () => {
+      const req = { user: { userId: 5 } } as unknown as Request;
+      const res = createMockResponse();
+      const user = { id: 5, email: 'user@example.com', nickname: 'User', createdAt: new Date() };
+      prismaMock.user.findUnique.mockResolvedValueOnce(user);
+
+      await getProfile(req, res);
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 5 },
+        select: {
+          id: true,
+          email: true,
+          nickname: true,
+          createdAt: true,
+        },
+      });
+      expect(res.json).toHaveBeenCalledWith({ user });
+    });
+
+    it('should return 401 when userId is NaN', async () => {
+      const req = { user: { userId: 'invalid' } } as unknown as Request;
+      const res = createMockResponse();
+
+      await getProfile(req, res);
+
+      expect(prismaMock.user.findUnique).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ error: 'No autenticado' });
     });
 
     it('should return 404 when user does not exist', async () => {
