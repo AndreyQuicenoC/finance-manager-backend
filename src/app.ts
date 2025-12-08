@@ -24,6 +24,7 @@ import cookieParser from "cookie-parser";
 import categoryRoutes from "./routes/category.routes";
 import transactionsRoutes from "./routes/transactions.routes";
 import tagPocketRoutes from "./routes/tagPocket.routes";
+import goalRoutes from "./routes/goal.routes";
 
 const app: Application = express();
 
@@ -82,6 +83,7 @@ app.use(cookieParser());
 app.use("/api/category",categoryRoutes);
 app.use("/api/transactions", transactionsRoutes);
 app.use("/api/tag",tagPocketRoutes);
+app.use("/api/goal", goalRoutes);
 
 
 // Health check endpoint
