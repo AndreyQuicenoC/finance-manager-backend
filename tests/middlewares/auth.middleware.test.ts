@@ -80,14 +80,14 @@ describe('verifyToken middleware', () => {
     const { req, res, next } = createContext();
     req.cookies.authToken = 'token';
     jwtMock.verify.mockReturnValueOnce({
-      userId: 'user-1',
+      userId: 1,
       email: 'user@example.com',
     } as any);
 
     verifyToken(req, res, next);
 
     expect(jwtMock.verify).toHaveBeenCalledWith('token', 'secret');
-    expect(req.user).toEqual({ userId: 'user-1', email: 'user@example.com' });
+    expect(req.user).toEqual({ userId: '1', email: 'user@example.com' });
     expect(next).toHaveBeenCalledTimes(1);
     expect(res.status).not.toHaveBeenCalled();
   });

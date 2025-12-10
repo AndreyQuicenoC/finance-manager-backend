@@ -56,12 +56,15 @@ const corsOptions: cors.CorsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// ✅ cookie parser MUST be before routes that use cookies
+app.use(cookieParser());
 
 // Rutas
 app.use("/api/auth", authRoutes);
-app.use("/api/account", accountRoutes);
-// cookie parser added for send to fronted cookie
-app.use(cookieParser());
+app.use("/api/accounts", accountRoutes); // ✅ Cambiado a plural para coincidir con frontend
+app.use("/api/categories", categoryRoutes); // ✅ Cambiado a plural para coincidir con frontend
+app.use("/api/transactions", transactionsRoutes);
+app.use("/api/tags", tagPocketRoutes); // ✅ Cambiado a plural para coincidir con frontend
 
 /**
  * Health check endpoint.
@@ -78,10 +81,6 @@ app.use(cookieParser());
  *   "message": "Server is running"
  * }
  */
-// Rotes
-app.use("/api/category",categoryRoutes);
-app.use("/api/transactions", transactionsRoutes);
-app.use("/api/tag",tagPocketRoutes);
 
 
 // Health check endpoint

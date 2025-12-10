@@ -65,7 +65,8 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
      * Extract JWT token from HTTP-only cookie.
      * Cookie name must match what's set in login route.
      */
-    const token = req.cookies.authToken;
+    // Ensure cookies object exists (cookie-parser should handle this, but add safety check)
+    const token = req.cookies?.authToken;
 
     /**
      * Check if token exists in cookies.
@@ -76,10 +77,33 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
     }
 
     /**
+     * Check if JWT_SECRET is configured.
+     */
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error("❌ JWT_SECRET no está configurado");
+      return res.status(500).json({ message: "Error de configuración del servidor" });
+    }
+
+    /**
      * Verify and decode JWT token using secret.
      * Throws error if token is invalid or expired.
      */
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+    let decoded: string | jwt.JwtPayload;
+    try {
+      decoded = jwt.verify(token, jwtSecret);
+    } catch (jwtError) {
+      // Handle JWT-specific errors
+      if (jwtError && typeof jwtError === "object" && "name" in jwtError) {
+        const errorName = (jwtError as { name: string }).name;
+        if (errorName === "TokenExpiredError") {
+          return res.status(401).json({ message: "Token has expired" });
+        } else if (errorName === "JsonWebTokenError") {
+          return res.status(401).json({ message: "Invalid token" });
+        }
+      }
+      throw jwtError; // Re-throw if it's not a known JWT error
+    }
 
     /**
      * Add decoded user information to request object.
@@ -88,14 +112,21 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
     if (
       typeof decoded === "object" &&
       decoded !== null &&
-      "userId" in decoded &&
-      "email" in decoded
+      "userId" in decoded
     ) {
+      // Keep userId as number since that's what the token has and what the database expects
+      const userId = typeof decoded.userId === "number" 
+        ? decoded.userId 
+        : Number(decoded.userId);
+      
       req.user = {
-        userId: decoded.userId,
-        email: decoded.email,
+        userId: String(userId), // Convert to string for the interface
+        email: "email" in decoded ? String(decoded.email) : "",
       };
+      
+      console.log("✅ [verifyToken] Token verificado, userId:", userId);
     } else {
+      console.error("❌ [verifyToken] Token payload inválido:", decoded);
       return res.status(401).json({ message: "Invalid token payload" });
     }
 
@@ -105,14 +136,12 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
     return next();
   } catch (error) {
     /**
-     * Handle specific JWT errors with appropriate responses.
+     * Handle unexpected errors.
      */
-    if (error && typeof error === "object" && "name" in error) {
-      if ((error as { name: string }).name === "TokenExpiredError") {
-        return res.status(401).json({ message: "Token has expired" });
-      } else if ((error as { name: string }).name === "JsonWebTokenError") {
-        return res.status(401).json({ message: "Invalid token" });
-      }
+    console.error("Error in verifyToken middleware:", error);
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
     }
     return res.status(500).json({ message: "Inténtalo de nuevo más tarde" });
   }

@@ -84,52 +84,62 @@ const revertAccountFromDeletedTransaction = async (res: Response, transactionId:
  * @returns {Promise<Response>} JSON response confirming the update or returning validation errors.
  */
 const updateAccountRelatedToTransaction = async (
-  res: Response,
   transaction: TransactionData,
   isUpdate = false
-) => {
-  const tag = await prisma.tagPocket.findUnique({
-    where: { id: transaction.tagId },
-    include: { account: true },
-  });
-
-  if (!tag || !tag.account) {
-    return res.status(404).json({ error: "Cuenta o tag no encontrada" });
-  }
-
-  const account = tag.account;
-  let newBalance = account.money;
-
-  if (isUpdate) {
-    // Si es una actualización, busca la transacción anterior
-    const oldTransaction = await prisma.transaction.findUnique({
-      where: { id: transaction.id },
+): Promise<{ success: boolean; error?: any }> => {
+  try {
+    const tag = await prisma.tagPocket.findUnique({
+      where: { id: transaction.tagId },
+      include: { account: true },
     });
 
-    if (!oldTransaction) {
-      return res.status(404).json({ error: "Transacción anterior no encontrada" });
+    if (!tag || !tag.account) {
+      return { success: false, error: { status: 404, message: "Cuenta o tag no encontrada" } };
     }
 
-    // Reviertes el efecto de la transacción anterior
-    newBalance += oldTransaction.isIncome
-      ? -oldTransaction.amount
-      : oldTransaction.amount;
+    const account = tag.account;
+    let newBalance = account.money;
+
+    if (isUpdate && transaction.id) {
+      // Si es una actualización, busca la transacción anterior
+      const oldTransaction = await prisma.transaction.findUnique({
+        where: { id: transaction.id },
+      });
+
+      if (!oldTransaction) {
+        return { success: false, error: { status: 404, message: "Transacción anterior no encontrada" } };
+      }
+
+      // Reviertes el efecto de la transacción anterior
+      newBalance += oldTransaction.isIncome
+        ? -oldTransaction.amount
+        : oldTransaction.amount;
+    }
+
+    // Aplicas el efecto de la nueva transacción
+    newBalance += transaction.isIncome ? transaction.amount : -transaction.amount;
+
+    // Validación para no dejar la cuenta en negativo
+    if (newBalance < 0) {
+      return { success: false, error: { status: 409, message: "Dinero insuficiente en la cuenta" } };
+    }
+
+    await prisma.account.update({
+      where: { id: account.id },
+      data: { money: newBalance },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error en updateAccountRelatedToTransaction:", error);
+    return { 
+      success: false, 
+      error: { 
+        status: 500, 
+        message: error instanceof Error ? error.message : "Error al actualizar cuenta" 
+      } 
+    };
   }
-
-  // Aplicas el efecto de la nueva transacción
-  newBalance += transaction.isIncome ? transaction.amount : -transaction.amount;
-
-  // Validación para no dejar la cuenta en negativo
-  if (newBalance < 0) {
-    return res.status(409).json({ error: "Dinero insuficiente en la cuenta" });
-  }
-
-  await prisma.account.update({
-    where: { id: account.id },
-    data: { money: newBalance },
-  });
-
-  return res.status(200).json({ message: "Cuenta actualizada correctamente" });
 };
 
 
@@ -149,40 +159,121 @@ const updateAccountRelatedToTransaction = async (
  */
 export const createTransaction = async (req: Request, res: Response) => {
   try {
+    // Obtener userId del token
+    const userIdValue = req.user?.userId;
+    const userId = typeof userIdValue === "number" 
+      ? userIdValue 
+      : userIdValue 
+      ? Number(userIdValue) 
+      : undefined;
+
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
     const { amount, isIncome, transactionDate, description, tagId } = req.body;
 
-    const transaction = await prisma.transaction.create({
-      data: {
-        amount,
-        isIncome,
-        transactionDate: new Date(transactionDate),
-        description,
-        tagId,
+    // Validar campos requeridos
+    if (!amount || isIncome === undefined || !transactionDate || !tagId) {
+      return res.status(400).json({ 
+        error: "Faltan campos requeridos: amount, isIncome, transactionDate, tagId" 
+      });
+    }
+
+    // Verificar que el tag pertenece al usuario autenticado
+    const tag = await prisma.tagPocket.findFirst({
+      where: {
+        id: Number(tagId),
+        account: {
+          userId: userId,
+        },
       },
     });
 
-    await updateAccountRelatedToTransaction(res,transaction);
+    if (!tag) {
+      return res.status(403).json({ error: "El tag no existe o no pertenece a tu cuenta" });
+    }
 
-    res.status(201).json({ message: "Transacción creada", transaction });
+    // Crear la transacción
+    const transaction = await prisma.transaction.create({
+      data: {
+        amount: Number(amount),
+        isIncome: Boolean(isIncome),
+        transactionDate: new Date(transactionDate),
+        description: description || null,
+        tagId: Number(tagId),
+      },
+    });
+
+    // Actualizar la cuenta relacionada
+    const accountUpdateResult = await updateAccountRelatedToTransaction({
+      id: transaction.id,
+      amount: transaction.amount,
+      isIncome: transaction.isIncome,
+      tagId: transaction.tagId,
+    });
+
+    // Si updateAccountRelatedToTransaction devuelve un error
+    if (!accountUpdateResult.success) {
+      // Eliminar la transacción creada
+      await prisma.transaction.delete({ where: { id: transaction.id } });
+      return res.status(accountUpdateResult.error?.status || 500).json({ 
+        error: accountUpdateResult.error?.message || "Error al actualizar cuenta" 
+      });
+    }
+
+    return res.status(201).json({ message: "Transacción creada", transaction });
   } catch (error) {
     console.error("Error creando transacción:", error);
-    res.status(500).json({ error: "Error al crear transacción" });
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+    }
+    return res.status(500).json({ 
+      error: "Error al crear transacción",
+      message: error instanceof Error ? error.message : "Error desconocido"
+    });
   }
 };
 
 /**
- * Retrieves all transactions from the database.
+ * Retrieves all transactions from the database for the authenticated user.
  *
  * @async
  * @route GET /transactions
- * @param {Request} req - Express request object.
+ * @param {Request} req - Express request object (with user from verifyToken middleware).
  * @param {Response} res - Express response object that returns an array of transactions.
  * @returns {Promise<void>}
  */
-export const getAllTransactions = async (_req: Request, res: Response) => {
+export const getAllTransactions = async (req: Request, res: Response) => {
   try {
+    // Obtener userId del token
+    const userIdValue = req.user?.userId;
+    const userId = typeof userIdValue === "number" 
+      ? userIdValue 
+      : userIdValue 
+      ? Number(userIdValue) 
+      : undefined;
+
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
+    // Filtrar transacciones por usuario a través de tag -> account -> user
     const transactions = await prisma.transaction.findMany({
-      include: { tag: true },
+      where: {
+        tag: {
+          account: {
+            userId: userId,
+          },
+        },
+      },
+      include: { 
+        tag: {
+          include: {
+            account: true,
+          },
+        },
+      },
     });
     return res.json(transactions);
   } catch (error) {
@@ -192,7 +283,7 @@ export const getAllTransactions = async (_req: Request, res: Response) => {
 };
 
 /**
- * Retrieves a single transaction by its ID.
+ * Retrieves a single transaction by its ID (only if it belongs to the authenticated user).
  *
  * @async
  * @route GET /transactions/:id
@@ -202,10 +293,35 @@ export const getAllTransactions = async (_req: Request, res: Response) => {
  */
 export const getTransactionById = async (req: Request, res: Response) => {
   try {
+    // Obtener userId del token
+    const userIdValue = req.user?.userId;
+    const userId = typeof userIdValue === "number" 
+      ? userIdValue 
+      : userIdValue 
+      ? Number(userIdValue) 
+      : undefined;
+
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
     const { id } = req.params;
-    const transaction = await prisma.transaction.findUnique({
-      where: { id: Number(id) },
-      include: { tag: true },
+    const transaction = await prisma.transaction.findFirst({
+      where: { 
+        id: Number(id),
+        tag: {
+          account: {
+            userId: userId,
+          },
+        },
+      },
+      include: { 
+        tag: {
+          include: {
+            account: true,
+          },
+        },
+      },
     });
 
     if (!transaction)
@@ -230,6 +346,18 @@ export const getTransactionById = async (req: Request, res: Response) => {
  */
 export const updateTransaction = async (req: Request, res: Response) => {
     try {
+      // Obtener userId del token
+      const userIdValue = req.user?.userId;
+      const userId = typeof userIdValue === "number" 
+        ? userIdValue 
+        : userIdValue 
+        ? Number(userIdValue) 
+        : undefined;
+
+      if (!userId || Number.isNaN(userId)) {
+        return res.status(401).json({ error: "No autenticado" });
+      }
+
       const { id } = req.params;
       const { amount, isIncome, transactionDate, description, tagId } = req.body;
   
@@ -237,8 +365,16 @@ export const updateTransaction = async (req: Request, res: Response) => {
         return res.status(400).json({ error: "ID inválido" });
       }
   
-      const existing = await prisma.transaction.findUnique({
-        where: { id: Number(id) },
+      // Verificar que la transacción pertenece al usuario autenticado
+      const existing = await prisma.transaction.findFirst({
+        where: { 
+          id: Number(id),
+          tag: {
+            account: {
+              userId: userId,
+            },
+          },
+        },
       });
   
       if (!existing) {
@@ -263,7 +399,31 @@ export const updateTransaction = async (req: Request, res: Response) => {
         data: dataToUpdate,
       });
 
-      await updateAccountRelatedToTransaction(res,updated,true);
+      // Actualizar la cuenta relacionada
+      const accountUpdateResult = await updateAccountRelatedToTransaction({
+        id: updated.id,
+        amount: updated.amount,
+        isIncome: updated.isIncome,
+        tagId: updated.tagId,
+      }, true);
+
+      // Si updateAccountRelatedToTransaction devuelve un error
+      if (!accountUpdateResult.success) {
+        // Revertir la actualización de la transacción
+        await prisma.transaction.update({
+          where: { id: Number(id) },
+          data: {
+            amount: existing.amount,
+            isIncome: existing.isIncome,
+            transactionDate: existing.transactionDate,
+            description: existing.description,
+            tagId: existing.tagId,
+          },
+        });
+        return res.status(accountUpdateResult.error?.status || 500).json({ 
+          error: accountUpdateResult.error?.message || "Error al actualizar cuenta" 
+        });
+      }
   
       return res.json({
         message: "Transacción actualizada correctamente",
@@ -287,10 +447,30 @@ export const updateTransaction = async (req: Request, res: Response) => {
  */
 export const deleteTransaction = async (req: Request, res: Response) => {
   try {
+    // Obtener userId del token
+    const userIdValue = req.user?.userId;
+    const userId = typeof userIdValue === "number" 
+      ? userIdValue 
+      : userIdValue 
+      ? Number(userIdValue) 
+      : undefined;
+
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
     const { id } = req.params;
 
-    const transaction = await prisma.transaction.findUnique({
-      where: { id: Number(id) },
+    // Verificar que la transacción pertenece al usuario autenticado
+    const transaction = await prisma.transaction.findFirst({
+      where: { 
+        id: Number(id),
+        tag: {
+          account: {
+            userId: userId,
+          },
+        },
+      },
     });
     
     if (!transaction)
@@ -321,6 +501,18 @@ export const deleteTransaction = async (req: Request, res: Response) => {
  */
 export const getTransactionsByDate = async (req: Request, res: Response) => {
   try {
+    // Obtener userId del token
+    const userIdValue = req.user?.userId;
+    const userId = typeof userIdValue === "number" 
+      ? userIdValue 
+      : userIdValue 
+      ? Number(userIdValue) 
+      : undefined;
+
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
     const { date } = req.query;
 
     if (!date) return res.status(400).json({ error: "Falta el parámetro 'date'" });
@@ -335,8 +527,19 @@ export const getTransactionsByDate = async (req: Request, res: Response) => {
           gte: start,
           lte: end,
         },
+        tag: {
+          account: {
+            userId: userId,
+          },
+        },
       },
-      include: { tag: true },
+      include: { 
+        tag: {
+          include: {
+            account: true,
+          },
+        },
+      },
     });
 
     return res.json(transactions);
@@ -347,7 +550,7 @@ export const getTransactionsByDate = async (req: Request, res: Response) => {
 };
 
 /**
- * Retrieves transactions filtered by type (income or expense) and a specific date.
+ * Retrieves transactions filtered by type (income or expense) and a specific date (only for authenticated user).
  *
  * @async
  * @route GET /transactions/by-type-and-date
@@ -359,6 +562,18 @@ export const getTransactionsByDate = async (req: Request, res: Response) => {
  */
 export const getTransactionsByTypeAndDate = async (req: Request, res: Response) => {
     try {
+      // Obtener userId del token
+      const userIdValue = req.user?.userId;
+      const userId = typeof userIdValue === "number" 
+        ? userIdValue 
+        : userIdValue 
+        ? Number(userIdValue) 
+        : undefined;
+
+      if (!userId || Number.isNaN(userId)) {
+        return res.status(401).json({ error: "No autenticado" });
+      }
+
       const { date, type } = req.query;
   
       if (!date || !type)
@@ -383,9 +598,18 @@ export const getTransactionsByTypeAndDate = async (req: Request, res: Response) 
             gte: start,
             lte: end,
           },
+          tag: {
+            account: {
+              userId: userId,
+            },
+          },
         },
         include: {
-          tag: true, 
+          tag: {
+            include: {
+              account: true,
+            },
+          },
         },
       });
   

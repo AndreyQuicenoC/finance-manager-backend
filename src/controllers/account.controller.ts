@@ -122,10 +122,14 @@ export const createAccount = async (req: Request, res: Response) => {
  */
 export const getAccountsByUser = async (req: Request, res: Response) => {
   try {
-    const { userId } = req.params;
+    // Support both query parameter and route parameter for backward compatibility
+    const userId = req.query.userId || req.params.userId;
+    
+    // If userId is provided, filter by it; otherwise get all accounts
+    const whereClause = userId ? { userId: Number(userId) } : {};
 
     const accounts = await prisma.account.findMany({
-      where: { userId: Number(userId) },
+      where: whereClause,
       include: { category: true, tags: true },
     });
 

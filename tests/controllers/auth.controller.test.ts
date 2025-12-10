@@ -218,7 +218,9 @@ describe('AuthController', () => {
       await signup(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Error al registrar usuario' });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Error al registrar usuario' })
+      );
     });
   });
 
@@ -448,7 +450,9 @@ describe('AuthController', () => {
       await getProfile(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Error al obtener perfil' });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Error al obtener perfil' })
+      );
     });
   });
 

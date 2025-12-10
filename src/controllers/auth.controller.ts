@@ -71,20 +71,12 @@ export const signup = async (req: Request, res: Response) => {
     }
 
     // Obtener o crear rol por defecto (usuario)
-    // Type assertion needed because Prisma Client types may not be fully generated
-    const prismaWithRole = prisma as typeof prisma & {
-      role: {
-        findUnique: (args: { where: { name: string } }) => Promise<{ id: number; name: string } | null>;
-        create: (args: { data: { name: string } }) => Promise<{ id: number; name: string }>;
-      };
-    };
-    
-    let defaultRole = await prismaWithRole.role.findUnique({
+    let defaultRole = await prisma.role.findUnique({
       where: { name: "user" },
     });
 
     if (!defaultRole) {
-      defaultRole = await prismaWithRole.role.create({
+      defaultRole = await prisma.role.create({
         data: { name: "user" },
       });
     }
@@ -93,9 +85,7 @@ export const signup = async (req: Request, res: Response) => {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     // Crear nuevo usuario
-    // Type assertion needed for roleId field
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const newUser = await (prisma.user.create as any)({
+    const newUser = await prisma.user.create({
       data: {
         email: email,
         password: hashedPassword,
@@ -122,7 +112,15 @@ export const signup = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error en signup:", error);
-    return res.status(500).json({ error: "Error al registrar usuario" });
+    // Log the full error for debugging
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
+    return res.status(500).json({ 
+      error: "Error al registrar usuario",
+      message: error instanceof Error ? error.message : "Error desconocido"
+    });
   }
 };
 
@@ -313,35 +311,65 @@ export const logout = (_req: Request, res: Response) => {
 export const getProfile = async (req: Request, res: Response) => {
   try {
     const userIdValue = req.user?.userId;
-    const userId =
-      typeof userIdValue === "number"
-        ? userIdValue
-        : userIdValue
-        ? Number(userIdValue)
-        : undefined;
+    
+    // Convert userId to number - it comes as string from middleware but token has it as number
+    let userId: number | undefined;
+    if (typeof userIdValue === "number") {
+      userId = userIdValue;
+    } else if (typeof userIdValue === "string") {
+      userId = Number(userIdValue);
+    } else if (userIdValue) {
+      userId = Number(userIdValue);
+    }
 
     if (!userId || Number.isNaN(userId)) {
+      console.error("❌ [getProfile] userId inválido:", userIdValue, typeof userIdValue);
       return res.status(401).json({ error: "No autenticado" });
     }
+    
+    console.log("✅ [getProfile] Buscando usuario con ID:", userId);
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        nickname: true,
-        createdAt: true,
-      },
-    });
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          nickname: true,
+          createdAt: true,
+        },
+      });
 
-    if (!user) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
+      if (!user) {
+        return res.status(404).json({ error: "Usuario no encontrado" });
+      }
+
+      return res.json({ user: user });
+    } catch (dbError) {
+      // Error específico de base de datos
+      console.error("Error de base de datos en getProfile:", dbError);
+      if (dbError instanceof Error) {
+        // Si es un error de conexión, devolver 503 (Service Unavailable)
+        if (dbError.message.includes("FATAL") || dbError.message.includes("connection")) {
+          return res.status(503).json({ 
+            error: "Servicio temporalmente no disponible",
+            message: "Error de conexión con la base de datos"
+          });
+        }
+      }
+      throw dbError; // Re-lanzar para que lo capture el catch general
     }
-
-    return res.json({ user: user });
   } catch (error) {
     console.error("Error en getProfile:", error);
-    return res.status(500).json({ error: "Error al obtener perfil" });
+    // Log the full error for debugging
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
+    return res.status(500).json({ 
+      error: "Error al obtener perfil",
+      message: error instanceof Error ? error.message : "Error desconocido"
+    });
   }
 };
 
