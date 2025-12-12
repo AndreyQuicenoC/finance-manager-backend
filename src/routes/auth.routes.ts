@@ -24,6 +24,7 @@ import {
   getProfile,
   recoverPass,
   resetPass,
+  adminLogin,
 } from "../controllers/auth.controller";
 import {
   signupValidation,
@@ -49,6 +50,14 @@ router.post("/signup", signupValidation, validate, signup);
  * @middleware loginValidation, validate
  */
 router.post("/login", loginValidation, validate, login);
+
+/**
+ * @route POST /api/auth/admin/login
+ * @description Authenticate admin user and create admin session
+ * @access Public (pero solo usuarios con rol admin/super_admin obtendrán token válido)
+ * @middleware loginValidation, validate
+ */
+router.post("/admin/login", loginValidation, validate, adminLogin);
 
 /**
  * @route POST /api/auth/logout

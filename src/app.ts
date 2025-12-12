@@ -24,6 +24,7 @@ import cookieParser from "cookie-parser";
 import categoryRoutes from "./routes/category.routes";
 import transactionsRoutes from "./routes/transactions.routes";
 import tagPocketRoutes from "./routes/tagPocket.routes";
+import adminRoutes from "./routes/admin.routes";
 
 const app: Application = express();
 
@@ -65,6 +66,7 @@ app.use("/api/accounts", accountRoutes); // ✅ Cambiado a plural para coincidir
 app.use("/api/categories", categoryRoutes); // ✅ Cambiado a plural para coincidir con frontend
 app.use("/api/transactions", transactionsRoutes);
 app.use("/api/tags", tagPocketRoutes); // ✅ Cambiado a plural para coincidir con frontend
+app.use("/api/admin", adminRoutes);
 
 /**
  * Health check endpoint.
