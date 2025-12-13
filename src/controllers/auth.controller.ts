@@ -14,8 +14,9 @@ import jwt from "jsonwebtoken";
 import prisma from "../config/db";
 //import { UserResponse } from "../types";
 import sendEmail from "../utils/sendEmail";
+import { generateAccessToken } from "../middlewares/auth.middleware";
 
-const JWT_SECRET = process.env.JWT_SECRET as string;
+const ACCESS_SECRET = process.env.ACCESS_SECRET as string;
 const SALT_ROUNDS = 10;
 
 /**
@@ -111,10 +112,8 @@ export const signup = async (req: Request, res: Response) => {
     });
 
     // Generar token JWT
-    const token = jwt.sign({ userId: newUser.id }, JWT_SECRET, {
-      expiresIn: "7d",
-    });
-
+    const token = generateAccessToken(newUser.id,newUser.email);
+    
     return res.status(201).json({
       message: "Usuario registrado exitosamente",
       token,
@@ -222,9 +221,7 @@ export const login = async (req: Request, res: Response) => {
     }
 
     // Generar token JWT
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
-      expiresIn: "7d",
-    });
+    const token = generateAccessToken(user.id,user.email)
 
     // ✅ GUARDAR TOKEN EN COOKIE HTTP-ONLY
     res.cookie("authToken", token, {
@@ -417,9 +414,7 @@ export const recoverPass = async (req: Request, res: Response) => {
      * Generate secure reset token.
      * Token expires in 1 hour for security.
      */
-    const resetToken = jwt.sign({ userId: user.id }, JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const resetToken = generateAccessToken(user.id,user.email)
 
     /**
      * Create password reset URL.
@@ -535,7 +530,7 @@ export const resetPass = async (req: Request, res: Response) => {
      */
     let decoded: { userId: number };
     try {
-      decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
+      decoded = jwt.verify(token, ACCESS_SECRET) as { userId: number };
     } catch (error) {
       console.error("Invalid or expired reset token:", error);
       return res.status(400).json({

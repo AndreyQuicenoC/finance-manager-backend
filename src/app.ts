@@ -24,6 +24,7 @@ import cookieParser from "cookie-parser";
 import categoryRoutes from "./routes/category.routes";
 import transactionsRoutes from "./routes/transactions.routes";
 import tagPocketRoutes from "./routes/tagPocket.routes";
+import chatRoutes from "./routes/chat.routes";
 
 const app: Application = express();
 
@@ -57,11 +58,13 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// cookie parser added for send to fronted cookie
+app.use(cookieParser());
+
+
 // Rutas
 app.use("/api/auth", authRoutes);
 app.use("/api/account", accountRoutes);
-// cookie parser added for send to fronted cookie
-app.use(cookieParser());
 
 /**
  * Health check endpoint.
@@ -82,6 +85,7 @@ app.use(cookieParser());
 app.use("/api/category",categoryRoutes);
 app.use("/api/transactions", transactionsRoutes);
 app.use("/api/tag",tagPocketRoutes);
+app.use("/api/chat", chatRoutes);
 
 
 // Health check endpoint

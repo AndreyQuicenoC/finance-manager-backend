@@ -13,7 +13,7 @@ import { NextFunction, Request, Response } from "express";
 declare module "express-serve-static-core" {
   interface Request {
     user?: {
-      userId: string;
+      userId: Number;
       email: string;
     };
   }
@@ -23,13 +23,13 @@ declare module "express-serve-static-core" {
 
 export function generateAccessToken(userId: number, email: string) {
   const ACCESS_SECRET = process.env.ACCESS_SECRET as string;
-  return jwt.sign({ id: userId, email }, ACCESS_SECRET, { expiresIn: "15m" });
+  return jwt.sign({ userId: userId, email }, ACCESS_SECRET, { expiresIn: "15m" });
 }
 
 // Genera refresh tokens (válidos por 7 días)
 export function generateRefreshToken(userId: number) {
   const REFRESH_SECRET = process.env.REFRESH_SECRET as string;
-  return jwt.sign({ id: userId }, REFRESH_SECRET, { expiresIn: "7d" });
+  return jwt.sign({ userId: userId }, REFRESH_SECRET, { expiresIn: "7d" });
 }
 
 /**
@@ -67,6 +67,9 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
      */
     const token = req.cookies.authToken;
 
+    console.log("ACCESS_SECRET:", process.env.ACCESS_SECRET);
+    console.log("TOKEN:", token);
+
     /**
      * Check if token exists in cookies.
      * Return 401 if missing.
@@ -79,7 +82,7 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
      * Verify and decode JWT token using secret.
      * Throws error if token is invalid or expired.
      */
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+    const decoded = jwt.verify(token, process.env.ACCESS_SECRET as string);
 
     /**
      * Add decoded user information to request object.
@@ -92,7 +95,7 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
       "email" in decoded
     ) {
       req.user = {
-        userId: decoded.userId,
+        userId: Number(decoded.userId),
         email: decoded.email,
       };
     } else {
@@ -114,7 +117,8 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
         return res.status(401).json({ message: "Invalid token" });
       }
     }
-    return res.status(500).json({ message: "Inténtalo de nuevo más tarde" });
+    console.error("JWT ERROR REAL:", error);
+    return res.status(500).json({ message: "Inténtalo de nuevo más tarde xD" });
   }
 };
 

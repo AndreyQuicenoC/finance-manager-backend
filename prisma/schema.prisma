@@ -156,6 +156,8 @@ model Message {
   id              Int      @id @default(autoincrement())
   message_send    String
   answers_message String
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
   chatId          Int
 
   // Relaciones
