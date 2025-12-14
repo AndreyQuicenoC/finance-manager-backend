@@ -103,11 +103,11 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
     }
 
     /**
-     * Check if ACCESS_SECRET is configured.
+     * Check if JWT_SECRET is configured.
      */
-    const accessSecret = process.env.ACCESS_SECRET;
-    if (!accessSecret) {
-      console.error("❌ ACCESS_SECRET no está configurado");
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error("❌ JWT_SECRET no está configurado");
       return res
         .status(500)
         .json({ message: "Error de configuración del servidor" });
@@ -119,7 +119,7 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
      */
     let decoded: string | jwt.JwtPayload;
     try {
-      decoded = jwt.verify(token, accessSecret);
+      decoded = jwt.verify(token, jwtSecret);
     } catch (jwtError) {
       const errorResponse = handleJwtError(jwtError, res);
       if (errorResponse) return errorResponse;

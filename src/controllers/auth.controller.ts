@@ -15,9 +15,8 @@ import { randomBytes } from "crypto";
 import prisma from "../config/db";
 //import { UserResponse } from "../types";
 import sendEmail from "../utils/sendEmail";
-import { generateAccessToken } from "../middlewares/auth.middleware";
 
-const ACCESS_SECRET = process.env.ACCESS_SECRET as string;
+const JWT_SECRET = process.env.JWT_SECRET as string;
 const SALT_ROUNDS = 10;
 
 /**
@@ -159,7 +158,9 @@ export const signup = async (req: Request, res: Response) => {
     });
 
     // Generar token JWT
-    const token = generateAccessToken(newUser.id,newUser.email);
+    const token = jwt.sign({ userId: newUser.id }, JWT_SECRET, {
+      expiresIn: "7d",
+    });
     
     return res.status(201).json({
       message: "Usuario registrado exitosamente",
@@ -260,27 +261,26 @@ export const login = async (req: Request, res: Response) => {
         createdAt: true,
         password: true,
         // El campo isDeleted puede no existir en esquemas antiguos; Prisma lo ignora en select si no está
-      } as any,
+      },
     });
 
     if (!user) {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
-    // Forzamos tipado flexible para evitar problemas de tipos generados por Prisma en tests
-    const userRecord: any = user;
-
     // Verificar contraseña
     const isPasswordValid = await bcrypt.compare(
       passwordInput,
-      userRecord.password as string
+      user.password
     );
     if (!isPasswordValid) {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
-    // Generar token JWT
-    const token = generateAccessToken(userRecord.id as number, userRecord.email as string);
+    // Generar token JWT para usuario normal
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
+      expiresIn: "7d",
+    });
 
     // ✅ GUARDAR TOKEN EN COOKIE HTTP-ONLY
     res.cookie("authToken", token, {
@@ -292,10 +292,10 @@ export const login = async (req: Request, res: Response) => {
     });
 
     // Registrar sesión / log de login
-    await registerUserSession(Number(userRecord.id), req);
+    await registerUserSession(user.id, req);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password: _password, ...safeUser } = userRecord;
+    const { password: _password, ...safeUser } = user;
 
     return res.json({
       message: "Inicio de sesión exitoso",
@@ -376,17 +376,16 @@ export const adminLogin = async (req: Request, res: Response) => {
     if (!user) {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
-    const userRecord: any = user;
 
     const isPasswordValid = await bcrypt.compare(
       passwordInput,
-      userRecord.password as string
+      user.password
     );
     if (!isPasswordValid) {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
-    const roleName = userRecord.role?.name as string | undefined;
+    const roleName = user.role?.name as string | undefined;
     if (roleName !== "admin" && roleName !== "super_admin") {
       return res
         .status(403)
@@ -402,7 +401,7 @@ export const adminLogin = async (req: Request, res: Response) => {
     }
 
     const adminToken = jwt.sign(
-      { userId: userRecord.id as number, role: roleName, email: userRecord.email },
+      { userId: user.id, role: roleName, email: user.email },
       adminSecret,
       {
         expiresIn: "1d",
@@ -418,11 +417,11 @@ export const adminLogin = async (req: Request, res: Response) => {
     });
 
     // registrar sesión como log de acceso al panel admin
-    await registerUserSession(Number(userRecord.id), req);
+    await registerUserSession(user.id, req);
 
     // No devolvemos contraseña
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password, ...safeUser } = userRecord;
+    const { password, ...safeUser } = user;
 
     return res.json({
       message: "Inicio de sesión de administrador exitoso",
@@ -610,7 +609,9 @@ export const recoverPass = async (req: Request, res: Response) => {
      * Generate secure reset token.
      * Token expires in 1 hour for security.
      */
-    const resetToken = generateAccessToken(user.id,user.email)
+    const resetToken = jwt.sign({ userId: user.id }, JWT_SECRET, {
+      expiresIn: "1h",
+    });
 
     // Registrar solicitud de reseteo en la tabla PasswordReset para estadísticas
     try {
@@ -740,7 +741,7 @@ export const resetPass = async (req: Request, res: Response) => {
      */
     let decoded: { userId: number };
     try {
-      decoded = jwt.verify(token, ACCESS_SECRET) as { userId: number };
+      decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
     } catch (error) {
       console.error("Invalid or expired reset token:", error);
       return res.status(400).json({

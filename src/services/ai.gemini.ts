@@ -1,12 +1,26 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// Lazy-load Google Generative AI SDK so tests can run even if the dependency
+// is not installed in the local environment. The real SDK will only be
+// required when `askGeminiAI` is actually invoked.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let genAI: any | null = null;
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const loadGenAI = () => {
+  if (!genAI) {
+    // Using require here avoids TypeScript module resolution errors when
+    // the SDK is not available in test environments.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { GoogleGenerativeAI } = require("@google/generative-ai");
+    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+  }
+  return genAI;
+};
 
 export const askGeminiAI = async (
   context: string,
   question: string
 ): Promise<string> => {
-  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+  const model = loadGenAI().getGenerativeModel({ model: "gemini-pro" });
 
   const prompt = `${context}\n\nPregunta: ${question}`;
 
