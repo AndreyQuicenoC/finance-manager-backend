@@ -85,13 +85,12 @@ export const getChatHistory = async (req: Request, res: Response) => {
         chatId: chat.id
       },
       orderBy: {
-        createdAt: "asc"
+        id: "asc"
       },
       select: {
         id: true,
         message_send: true,
-        answers_message: true,
-        createdAt: true
+        answers_message: true
       }
     });
   

@@ -1,6 +1,28 @@
 
 // utils/ai/buildContext.ts
-export const buildAccountContext = (account: any) => {
+interface Transaction {
+  isIncome: boolean;
+  amount: number;
+  transactionDate: Date;
+  description: string | null;
+}
+
+interface Tag {
+  name: string;
+  description: string | null;
+  transactions: Transaction[];
+}
+
+interface AccountContext {
+  name: string | null;
+  money: number;
+  category: {
+    tipo: string;
+  };
+  tags: Tag[];
+}
+
+export const buildAccountContext = (account: AccountContext) => {
     let context = `
   Eres un asistente financiero.
   Analiza la siguiente información y responde claramente.
@@ -15,7 +37,7 @@ export const buildAccountContext = (account: any) => {
   
     for (const tag of account.tags) {
       const total = tag.transactions.reduce(
-        (sum: number, t: any) =>
+        (sum: number, t: Transaction) =>
           t.isIncome ? sum + t.amount : sum - t.amount,
         0
       );

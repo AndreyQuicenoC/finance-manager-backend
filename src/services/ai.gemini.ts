@@ -1,27 +1,18 @@
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const openai = new OpenAI({
-  apiKey: process.env.GEMINI_API_KEY!,
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export const askGeminiAI = async (
   context: string,
   question: string
 ): Promise<string> => {
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      {
-        role: "system",
-        content: context,
-      },
-      {
-        role: "user",
-        content: question,
-      },
-    ],
-    temperature: 0.4,
-  });
+  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-  return completion.choices[0].message?.content ?? "";
+  const prompt = `${context}\n\nPregunta: ${question}`;
+
+  const result = await model.generateContent(prompt);
+  const response = await result.response;
+  const text = response.text();
+
+  return text;
 };

@@ -13,7 +13,7 @@ import { NextFunction, Request, Response } from "express";
 declare module "express-serve-static-core" {
   interface Request {
     user?: {
-      userId: Number;
+      userId: number;
       email: string;
     };
   }
@@ -66,9 +66,6 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
      * Cookie name must match what's set in login route.
      */
     const token = req.cookies.authToken;
-
-    console.log("ACCESS_SECRET:", process.env.ACCESS_SECRET);
-    console.log("TOKEN:", token);
 
     /**
      * Check if token exists in cookies.
