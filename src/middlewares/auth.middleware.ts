@@ -124,8 +124,6 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
             ? String((decoded as jwt.JwtPayload).email)
             : "",
       };
-
-      console.log("✅ [verifyToken] Token verificado, userId:", userId);
     } else {
       console.error("❌ [verifyToken] Token payload inválido:", decoded);
       return res.status(401).json({ message: "Invalid token payload" });

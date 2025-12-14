@@ -346,7 +346,7 @@ export const logout = (_req: Request, res: Response) => {
  */
 export const adminLogin = async (req: Request, res: Response) => {
   try {
-    const { correoElectronico, email, contraseña, password } = req.body ?? {};
+    const { correoElectronico, email, contraseña, password: pwd } = req.body ?? {};
 
     const emailInput =
       typeof correoElectronico === "string"
@@ -358,8 +358,8 @@ export const adminLogin = async (req: Request, res: Response) => {
     const passwordInput =
       typeof contraseña === "string"
         ? contraseña
-        : typeof password === "string"
-        ? password
+        : typeof pwd === "string"
+        ? pwd
         : "";
 
     if (!emailInput || !passwordInput) {
@@ -423,7 +423,7 @@ export const adminLogin = async (req: Request, res: Response) => {
     await registerUserSession(Number(userRecord.id), req);
 
     // No devolvemos contraseña
-    const { password: _pass, ...safeUser } = userRecord;
+    const { password, ...safeUser } = userRecord;
 
     return res.json({
       message: "Inicio de sesión de administrador exitoso",
@@ -493,8 +493,6 @@ export const getProfile = async (req: Request, res: Response) => {
       console.error("❌ [getProfile] userId inválido:", userIdValue, typeof userIdValue);
       return res.status(401).json({ error: "No autenticado" });
     }
-    
-    console.log("✅ [getProfile] Buscando usuario con ID:", userId);
 
     try {
       const user = await prisma.user.findUnique({
