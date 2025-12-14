@@ -476,63 +476,64 @@ export const adminLogin = async (req: Request, res: Response) => {
  * 
  * @requires verifyToken middleware
  */
+// Helper: Convert userId to number
+const parseUserId = (userIdValue: unknown): number | null => {
+  if (typeof userIdValue === "number") return userIdValue;
+  if (typeof userIdValue === "string" || userIdValue) {
+    const parsed = Number(userIdValue);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+};
+
+// Helper: Check if error is a database connection error
+const isDatabaseConnectionError = (error: Error): boolean => {
+  return error.message.includes("FATAL") || error.message.includes("connection");
+};
+
+// Helper: Handle database errors
+const handleDatabaseError = (dbError: unknown, res: Response) => {
+  console.error("Error de base de datos en getProfile:", dbError);
+  
+  if (dbError instanceof Error && isDatabaseConnectionError(dbError)) {
+    return res.status(503).json({
+      error: "Servicio temporalmente no disponible",
+      message: "Error de conexión con la base de datos"
+    });
+  }
+  
+  throw dbError;
+};
+
 export const getProfile = async (req: Request, res: Response) => {
   try {
-    const userIdValue = req.user?.userId;
-    
-    // Convert userId to number - it comes as string from middleware but token has it as number
-    let userId: number | undefined;
-    if (typeof userIdValue === "number") {
-      userId = userIdValue;
-    } else if (typeof userIdValue === "string") {
-      userId = Number(userIdValue);
-    } else if (userIdValue) {
-      userId = Number(userIdValue);
-    }
+    const userId = parseUserId(req.user?.userId);
 
-    if (!userId || Number.isNaN(userId)) {
-      console.error("❌ [getProfile] userId inválido:", userIdValue, typeof userIdValue);
+    if (!userId) {
+      console.error("❌ [getProfile] userId inválido:", req.user?.userId);
       return res.status(401).json({ error: "No autenticado" });
     }
 
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: {
-          id: true,
-          email: true,
-          nickname: true,
-          createdAt: true,
-        },
+        select: { id: true, email: true, nickname: true, createdAt: true },
       });
 
       if (!user) {
         return res.status(404).json({ error: "Usuario no encontrado" });
       }
 
-      return res.json({ user: user });
+      return res.json({ user });
     } catch (dbError) {
-      // Error específico de base de datos
-      console.error("Error de base de datos en getProfile:", dbError);
-      if (dbError instanceof Error) {
-        // Si es un error de conexión, devolver 503 (Service Unavailable)
-        if (dbError.message.includes("FATAL") || dbError.message.includes("connection")) {
-          return res.status(503).json({ 
-            error: "Servicio temporalmente no disponible",
-            message: "Error de conexión con la base de datos"
-          });
-        }
-      }
-      throw dbError; // Re-lanzar para que lo capture el catch general
+      return handleDatabaseError(dbError, res);
     }
   } catch (error) {
     console.error("Error en getProfile:", error);
-    // Log the full error for debugging
     if (error instanceof Error) {
       console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
     }
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: "Error al obtener perfil",
       message: error instanceof Error ? error.message : "Error desconocido"
     });

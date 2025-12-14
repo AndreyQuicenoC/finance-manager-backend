@@ -37,6 +37,33 @@ export function generateRefreshToken(userId: number) {
   return jwt.sign({ id: userId }, REFRESH_SECRET, { expiresIn: "7d" });
 }
 
+// Helper: Handle JWT verification errors
+const handleJwtError = (jwtError: unknown, res: Response): Response | null => {
+  if (jwtError && typeof jwtError === "object" && "name" in jwtError) {
+    const errorName = (jwtError as { name: string }).name;
+    if (errorName === "TokenExpiredError") {
+      return res.status(401).json({ message: "Token has expired" });
+    }
+    if (errorName === "JsonWebTokenError") {
+      return res.status(401).json({ message: "Invalid token" });
+    }
+  }
+  return null;
+};
+
+// Helper: Extract user data from decoded token
+const extractUserFromToken = (decoded: string | jwt.JwtPayload): { userId: string; email: string } | null => {
+  if (typeof decoded !== "object" || decoded === null || !("userId" in decoded)) {
+    return null;
+  }
+
+  const payload = decoded as jwt.JwtPayload;
+  const userId = typeof payload.userId === "number" ? payload.userId : Number(payload.userId);
+  const email = "email" in payload ? String(payload.email) : "";
+
+  return { userId: String(userId), email };
+};
+
 /**
  * Middleware function to verify and validate JWT tokens from HTTP-only cookies.
  * Extracts token from cookie, verifies it, and adds user data to request.
@@ -94,53 +121,24 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
     try {
       decoded = jwt.verify(token, jwtSecret);
     } catch (jwtError) {
-      // Handle JWT-specific errors
-      if (jwtError && typeof jwtError === "object" && "name" in jwtError) {
-        const errorName = (jwtError as { name: string }).name;
-        if (errorName === "TokenExpiredError") {
-          return res.status(401).json({ message: "Token has expired" });
-        } else if (errorName === "JsonWebTokenError") {
-          return res.status(401).json({ message: "Invalid token" });
-        }
-      }
-      throw jwtError; // Re-throw if it's not a known JWT error
+      const errorResponse = handleJwtError(jwtError, res);
+      if (errorResponse) return errorResponse;
+      throw jwtError;
     }
 
-    /**
-     * Add decoded user information to request object.
-     * Makes user data available in subsequent middleware/controllers.
-     */
-    if (typeof decoded === "object" && decoded !== null && "userId" in decoded) {
-      // Keep userId as number since that's what the token has and what the database expects
-      const userId =
-        typeof (decoded as jwt.JwtPayload).userId === "number"
-          ? (decoded as jwt.JwtPayload).userId
-          : Number((decoded as jwt.JwtPayload).userId);
-
-      req.user = {
-        userId: String(userId), // Convert to string for the interface
-        email:
-          "email" in (decoded as jwt.JwtPayload)
-            ? String((decoded as jwt.JwtPayload).email)
-            : "",
-      };
-    } else {
+    const user = extractUserFromToken(decoded);
+    if (!user) {
       console.error("❌ [verifyToken] Token payload inválido:", decoded);
       return res.status(401).json({ message: "Invalid token payload" });
     }
 
-    /**
-     * Continue to next middleware or route handler.
-     */
+    req.user = user;
+
     return next();
   } catch (error) {
-    /**
-     * Handle unexpected errors.
-     */
-      console.error("Error in verifyToken middleware:", error);
+    console.error("Error in verifyToken middleware:", error);
     if (error instanceof Error) {
       console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
     }
     return res.status(500).json({ message: "Inténtalo de nuevo más tarde" });
   }
@@ -152,6 +150,45 @@ const verifyToken = (req: Request, res: Response, next: NextFunction) => {
  * @see verifyToken
  */
 export default verifyToken;
+
+// Helper: Extract admin user data from decoded token
+const extractAdminFromToken = (decoded: string | jwt.JwtPayload) => {
+  if (typeof decoded !== "object" || decoded === null || !("userId" in decoded)) {
+    return null;
+  }
+
+  const payload = decoded as jwt.JwtPayload & {
+    userId: number | string;
+    role?: string;
+    email?: string;
+  };
+
+  const userId = typeof payload.userId === "number" ? payload.userId : Number(payload.userId);
+
+  return {
+    userId: String(userId),
+    email: payload.email ?? "",
+    role: payload.role,
+  };
+};
+
+// Helper: Validate admin role access
+const validateAdminRole = (role: string | undefined, requireSuperAdmin: boolean, res: Response): Response | null => {
+  if (!role) {
+    return res.status(403).json({ message: "Rol de administrador requerido" });
+  }
+
+  const isAdmin = role === "admin" || role === "super_admin";
+  if (!isAdmin) {
+    return res.status(403).json({ message: "Acceso de administrador requerido" });
+  }
+
+  if (requireSuperAdmin && role !== "super_admin") {
+    return res.status(403).json({ message: "Acceso de súper administrador requerido" });
+  }
+
+  return null;
+};
 
 /**
  * Internal helper to validate an admin or super-admin token coming from cookies.
@@ -173,81 +210,38 @@ const verifyAdminTokenBase = (
       return res.status(401).json({ message: "Autenticación de administrador requerida" });
     }
 
-    const baseSecret = process.env.JWT_SECRET;
-    const adminSecret = process.env.JWT_ADMIN_SECRET || baseSecret;
+    const adminSecret = process.env.JWT_ADMIN_SECRET || process.env.JWT_SECRET;
 
     if (!adminSecret) {
       console.error("❌ JWT_ADMIN_SECRET / JWT_SECRET no están configurados");
-      return res
-        .status(500)
-        .json({ message: "Error de configuración del servidor" });
+      return res.status(500).json({ message: "Error de configuración del servidor" });
     }
 
     let decoded: string | jwt.JwtPayload;
     try {
       decoded = jwt.verify(token, adminSecret);
     } catch (jwtError) {
-      if (jwtError && typeof jwtError === "object" && "name" in jwtError) {
-        const errorName = (jwtError as { name: string }).name;
-        if (errorName === "TokenExpiredError") {
-          return res.status(401).json({ message: "Token has expired" });
-        } else if (errorName === "JsonWebTokenError") {
-          return res.status(401).json({ message: "Invalid token" });
-        }
-      }
+      const errorResponse = handleJwtError(jwtError, res);
+      if (errorResponse) return errorResponse;
       throw jwtError;
     }
 
-    if (
-      typeof decoded !== "object" ||
-      decoded === null ||
-      !("userId" in decoded)
-    ) {
+    const user = extractAdminFromToken(decoded);
+    if (!user) {
       console.error("❌ [verifyAdminTokenBase] Token payload inválido:", decoded);
       return res.status(401).json({ message: "Invalid token payload" });
     }
 
-    const payload = decoded as jwt.JwtPayload & {
-      userId: number | string;
-      role?: string;
-      email?: string;
-    };
+    req.user = user;
 
-    const userId =
-      typeof payload.userId === "number"
-        ? payload.userId
-        : Number(payload.userId);
-
-    const role = payload.role;
-
-    req.user = {
-      userId: String(userId),
-      email: payload.email ?? "",
-      role,
-    };
-
-    // Role checks
-    if (!role) {
-      return res.status(403).json({ message: "Rol de administrador requerido" });
-    }
-
-    const isAdmin = role === "admin" || role === "super_admin";
-    const isSuperAdmin = role === "super_admin";
-
-    if (!isAdmin) {
-      return res.status(403).json({ message: "Acceso de administrador requerido" });
-    }
-
-    if (options.requireSuperAdmin && !isSuperAdmin) {
-      return res.status(403).json({ message: "Acceso de súper administrador requerido" });
-    }
+    const roleError = validateAdminRole(user.role, options.requireSuperAdmin, res);
+    if (roleError) return roleError;
 
     return next();
   } catch (error) {
     console.error("Error in verifyAdminTokenBase middleware:", error);
     if (error instanceof Error) {
       console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
     }
     return res.status(500).json({ message: "Inténtalo de nuevo más tarde" });
   }
