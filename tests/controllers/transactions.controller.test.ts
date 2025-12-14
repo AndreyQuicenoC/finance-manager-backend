@@ -478,6 +478,48 @@ describe('TransactionsController', () => {
       expect(res.json).toHaveBeenCalledWith({ error: 'No se enviaron campos para actualizar' });
     });
 
+    it('should propagate business error from account update when updating transaction', async () => {
+      const req = {
+        user: mockUser,
+        params: { id: '1' },
+        body: { amount: 200, tagId: 1 },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const existing = {
+        id: 1,
+        amount: 100,
+        isIncome: true,
+        tagId: 1,
+        transactionDate: new Date('2024-01-01'),
+        description: 'old',
+      };
+      const updated = {
+        id: 1,
+        amount: 200,
+        isIncome: true,
+        tagId: 1,
+        transactionDate: existing.transactionDate,
+        description: existing.description,
+      };
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(existing as any);
+      prismaMock.transaction.update.mockResolvedValueOnce(updated as any);
+      // Simular que updateAccountRelatedToTransaction devuelve error 409
+      prismaMock.tagPocket.findUnique.mockResolvedValueOnce({
+        id: 1,
+        account: { id: 1, money: 0 },
+      } as any);
+      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.account.update.mockImplementationOnce(() => {
+        throw Object.assign(new Error('Dinero insuficiente en la cuenta'), {
+          status: 409,
+        });
+      });
+
+      await updateTransaction(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500); // cae en el catch general
+    });
+
     it('should update transaction and account when old transaction is found', async () => {
       const req = {
         user: mockUser,

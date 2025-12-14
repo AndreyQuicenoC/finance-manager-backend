@@ -28,14 +28,14 @@ export const askGemini = async (req: Request, res: Response) => {
   }
 
   let chat = await prisma.chat.findFirst({
-    where: { accountId }
+    where: { accountId },
   });
 
-  if (!chat) {
-    chat = await prisma.chat.create({
-      data: { accountId }
-    });
-  }
+  // Si no existe chat previo para la cuenta, créalo utilizando
+  // asignación con nullish coalescing para mayor claridad.
+  chat ??= await prisma.chat.create({
+    data: { accountId },
+  });
 
   const context = buildAccountContext(account);
 
