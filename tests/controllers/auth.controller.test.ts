@@ -475,6 +475,22 @@ describe('AuthController', () => {
         expect.objectContaining({ error: 'Error al obtener perfil' })
       );
     });
+
+    it('should return 503 when there is a database connection error', async () => {
+      const req = { user: { userId: '5' } } as unknown as Request;
+      const res = createMockResponse();
+      prismaMock.user.findUnique.mockRejectedValueOnce(
+        new Error('FATAL: connection to database lost')
+      );
+
+      await getProfile(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(503);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Servicio temporalmente no disponible',
+        message: 'Error de conexión con la base de datos',
+      });
+    });
   });
 
   describe('recoverPass', () => {
@@ -542,6 +558,29 @@ describe('AuthController', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Inténtalo de nuevo más tarde',
+      });
+    });
+
+    it('should still succeed when logging PasswordReset fails', async () => {
+      const req = { body: { email: 'user@example.com' } } as Request;
+      const res = createMockResponse();
+      prismaMock.user.findUnique.mockResolvedValueOnce({
+        id: 1,
+        email: 'user@example.com',
+      });
+      jwtMock.sign.mockReturnValueOnce('reset-token');
+      prismaMock.passwordReset.create.mockRejectedValueOnce(
+        new Error('log error')
+      );
+      sendEmailMock.mockResolvedValueOnce();
+
+      await recoverPass(req, res);
+
+      expect(prismaMock.passwordReset.create).toHaveBeenCalled();
+      expect(sendEmailMock).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Revisa tu correo para continuar',
       });
     });
   });
@@ -662,6 +701,30 @@ describe('AuthController', () => {
         message: 'Inténtalo de nuevo más tarde',
       });
     });
+
+    it('should succeed even if PasswordReset log update fails', async () => {
+      const req = {
+        params: { token: 'token' },
+        body: { password: 'Password1!', confirmPassword: 'Password1!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      jwtMock.verify.mockReturnValueOnce({ userId: 1 });
+      prismaMock.user.findUnique.mockResolvedValueOnce({ id: 1 });
+      bcryptMock.hash.mockResolvedValueOnce('hashed');
+      prismaMock.user.update.mockResolvedValueOnce({});
+      prismaMock.passwordReset.updateMany.mockRejectedValueOnce(
+        new Error('log fail')
+      );
+
+      await resetPass(req, res);
+
+      expect(prismaMock.user.update).toHaveBeenCalled();
+      expect(prismaMock.passwordReset.updateMany).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Contraseña actualizada',
+      });
+    });
   });
 
   describe('adminLogin', () => {
@@ -738,6 +801,87 @@ describe('AuthController', () => {
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
         error: 'Acceso restringido a administradores',
+      });
+    });
+
+    it('should return 401 when admin user is not found', async () => {
+      const req = {
+        body: { email: 'admin@example.com', password: 'Secret123!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      prismaMock.user.findUnique.mockResolvedValueOnce(null);
+
+      await adminLogin(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Credenciales inválidas',
+      });
+    });
+
+    it('should return 401 when admin password is invalid', async () => {
+      const req = {
+        body: { email: 'admin@example.com', password: 'WrongPass!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const user = {
+        id: 1,
+        email: 'admin@example.com',
+        password: 'hashed',
+        role: { name: 'admin' },
+      };
+      prismaMock.user.findUnique.mockResolvedValueOnce(user);
+      bcryptMock.compare.mockResolvedValueOnce(false);
+
+      await adminLogin(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Credenciales inválidas',
+      });
+    });
+
+    it('should return 500 when admin secret is not configured', async () => {
+      const req = {
+        body: { email: 'admin@example.com', password: 'Secret123!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      const user = {
+        id: 1,
+        email: 'admin@example.com',
+        password: 'hashed',
+        nickname: 'Admin',
+        createdAt: new Date(),
+        role: { name: 'admin' },
+      };
+      prismaMock.user.findUnique.mockResolvedValueOnce(user);
+      bcryptMock.compare.mockResolvedValueOnce(true);
+
+      // Simular que no hay secretos configurados
+      delete process.env.JWT_ADMIN_SECRET;
+      delete process.env.JWT_SECRET;
+
+      await adminLogin(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Error de configuración del servidor',
+      });
+    });
+
+    it('should return 500 when adminLogin throws unexpectedly', async () => {
+      const req = {
+        body: { email: 'admin@example.com', password: 'Secret123!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      prismaMock.user.findUnique.mockRejectedValueOnce(new Error('db fail'));
+
+      await adminLogin(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Error al iniciar sesión como administrador',
       });
     });
   });
