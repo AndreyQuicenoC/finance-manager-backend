@@ -423,6 +423,7 @@ export const adminLogin = async (req: Request, res: Response) => {
     await registerUserSession(Number(userRecord.id), req);
 
     // No devolvemos contraseña
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, ...safeUser } = userRecord;
 
     return res.json({
