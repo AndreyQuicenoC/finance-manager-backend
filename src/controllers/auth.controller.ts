@@ -11,6 +11,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { randomBytes } from "crypto";
 import prisma from "../config/db";
 //import { UserResponse } from "../types";
 import sendEmail from "../utils/sendEmail";
@@ -58,7 +59,7 @@ const registerUserSession = async (userId: number, req: Request) => {
         userAgent: userAgent ?? undefined,
         ip: ip ?? undefined,
         tokenId: `${userId}-${Date.now()}`,
-        refreshToken: `${userId}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        refreshToken: `${userId}-${Date.now()}-${randomBytes(16).toString('hex')}`,
         expiresAt,
       },
       update: {

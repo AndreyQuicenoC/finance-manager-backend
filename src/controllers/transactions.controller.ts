@@ -1,6 +1,29 @@
 import { Request, Response } from "express";
 import prisma from "../config/db";
 
+/**
+ * Helper: Calculate new balance after applying transaction
+ */
+const calculateNewBalance = (
+  currentBalance: number,
+  amount: number,
+  isIncome: boolean,
+  operation: 'apply' | 'revert'
+): number => {
+  if (operation === 'apply') {
+    return currentBalance + (isIncome ? amount : -amount);
+  }
+  // revert operation
+  return currentBalance + (isIncome ? -amount : amount);
+};
+
+/**
+ * Helper: Validate balance is not negative
+ */
+const validateBalance = (balance: number): boolean => {
+  return balance >= 0;
+};
+
 interface TransactionData {
   id?: number;
   amount: number;
@@ -42,15 +65,15 @@ const revertAccountFromDeletedTransaction = async (res: Response, transactionId:
   }
 
   const account = transaction.tag.account;
-  let newBalance = account.money;
-
-  // Revertir el efecto de la transacción
-  newBalance += transaction.isIncome
-    ? -transaction.amount // si era ingreso, ahora se resta
-    : transaction.amount; // si era gasto, ahora se suma
+  const newBalance = calculateNewBalance(
+    account.money,
+    transaction.amount,
+    transaction.isIncome,
+    'revert'
+  );
 
   // Validar que el saldo no quede negativo después del ajuste
-  if (newBalance < 0) {
+  if (!validateBalance(newBalance)) {
     return res.status(409).json({ error: "La eliminación deja el saldo en negativo" });
   }
 
@@ -111,16 +134,24 @@ const updateAccountRelatedToTransaction = async (
       }
 
       // Reviertes el efecto de la transacción anterior
-      newBalance += oldTransaction.isIncome
-        ? -oldTransaction.amount
-        : oldTransaction.amount;
+      newBalance = calculateNewBalance(
+        newBalance,
+        oldTransaction.amount,
+        oldTransaction.isIncome,
+        'revert'
+      );
     }
 
     // Aplicas el efecto de la nueva transacción
-    newBalance += transaction.isIncome ? transaction.amount : -transaction.amount;
+    newBalance = calculateNewBalance(
+      newBalance,
+      transaction.amount,
+      transaction.isIncome,
+      'apply'
+    );
 
     // Validación para no dejar la cuenta en negativo
-    if (newBalance < 0) {
+    if (!validateBalance(newBalance)) {
       return { success: false, error: { status: 409, message: "Dinero insuficiente en la cuenta" } };
     }
 
