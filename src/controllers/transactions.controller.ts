@@ -2,6 +2,24 @@ import { Request, Response } from "express";
 import prisma from "../config/db";
 
 /**
+ * Helper: Extract and validate userId from request
+ */
+const getUserIdFromRequest = (req: Request): number | null => {
+  const userIdValue = req.user?.userId;
+  const userId = typeof userIdValue === "number" 
+    ? userIdValue 
+    : userIdValue 
+    ? Number(userIdValue) 
+    : undefined;
+  
+  if (!userId || Number.isNaN(userId)) {
+    return null;
+  }
+  
+  return userId;
+};
+
+/**
  * Helper: Calculate new balance after applying transaction
  */
 const calculateNewBalance = (
@@ -190,15 +208,8 @@ const updateAccountRelatedToTransaction = async (
  */
 export const createTransaction = async (req: Request, res: Response) => {
   try {
-    // Obtener userId del token
-    const userIdValue = req.user?.userId;
-    const userId = typeof userIdValue === "number" 
-      ? userIdValue 
-      : userIdValue 
-      ? Number(userIdValue) 
-      : undefined;
-
-    if (!userId || Number.isNaN(userId)) {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
       return res.status(401).json({ error: "No autenticado" });
     }
 
@@ -277,15 +288,8 @@ export const createTransaction = async (req: Request, res: Response) => {
  */
 export const getAllTransactions = async (req: Request, res: Response) => {
   try {
-    // Obtener userId del token
-    const userIdValue = req.user?.userId;
-    const userId = typeof userIdValue === "number" 
-      ? userIdValue 
-      : userIdValue 
-      ? Number(userIdValue) 
-      : undefined;
-
-    if (!userId || Number.isNaN(userId)) {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
       return res.status(401).json({ error: "No autenticado" });
     }
 
@@ -324,15 +328,8 @@ export const getAllTransactions = async (req: Request, res: Response) => {
  */
 export const getTransactionById = async (req: Request, res: Response) => {
   try {
-    // Obtener userId del token
-    const userIdValue = req.user?.userId;
-    const userId = typeof userIdValue === "number" 
-      ? userIdValue 
-      : userIdValue 
-      ? Number(userIdValue) 
-      : undefined;
-
-    if (!userId || Number.isNaN(userId)) {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
       return res.status(401).json({ error: "No autenticado" });
     }
 
@@ -377,15 +374,8 @@ export const getTransactionById = async (req: Request, res: Response) => {
  */
 export const updateTransaction = async (req: Request, res: Response) => {
     try {
-      // Obtener userId del token
-      const userIdValue = req.user?.userId;
-      const userId = typeof userIdValue === "number" 
-        ? userIdValue 
-        : userIdValue 
-        ? Number(userIdValue) 
-        : undefined;
-
-      if (!userId || Number.isNaN(userId)) {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
         return res.status(401).json({ error: "No autenticado" });
       }
 
@@ -478,15 +468,8 @@ export const updateTransaction = async (req: Request, res: Response) => {
  */
 export const deleteTransaction = async (req: Request, res: Response) => {
   try {
-    // Obtener userId del token
-    const userIdValue = req.user?.userId;
-    const userId = typeof userIdValue === "number" 
-      ? userIdValue 
-      : userIdValue 
-      ? Number(userIdValue) 
-      : undefined;
-
-    if (!userId || Number.isNaN(userId)) {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
       return res.status(401).json({ error: "No autenticado" });
     }
 
