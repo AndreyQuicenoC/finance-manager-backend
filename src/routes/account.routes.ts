@@ -35,13 +35,13 @@ const router = Router();
 router.post("/", verifyToken, createAccount);
 
 /**
- * @route GET /api/account/:userId
- * @description Get all accounts for a specific user
+ * @route GET /api/accounts
+ * @description Get all accounts (optionally filtered by userId query parameter)
  * @access Private (requires authentication)
  * @middleware verifyToken
- * @param {string} userId - User ID to get accounts for
+ * @query {number} [userId] - Optional user ID to filter accounts
  */
-router.get("/:userId", verifyToken, getAccountsByUser);
+router.get("/", verifyToken, getAccountsByUser);
 
 /**
  * @route PUT /api/account/:id

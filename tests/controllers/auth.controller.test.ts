@@ -7,6 +7,7 @@ import {
   getProfile,
   recoverPass,
   resetPass,
+  adminLogin,
 } from '../../src/controllers/auth.controller';
 import prisma from '../../src/config/db';
 import bcrypt from 'bcrypt';
@@ -20,10 +21,25 @@ jest.mock('../../src/config/db', () => ({
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      count: jest.fn(),
+      findMany: jest.fn(),
     },
     role: {
       findUnique: jest.fn(),
       create: jest.fn(),
+    },
+    userSession: {
+      upsert: jest.fn(),
+      findMany: jest.fn(),
+    },
+    passwordReset: {
+      create: jest.fn(),
+      count: jest.fn(),
+      groupBy: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    transaction: {
+      count: jest.fn(),
     },
   },
 }));
@@ -74,6 +90,7 @@ describe('AuthController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.JWT_SECRET = 'secret';
+    process.env.JWT_ADMIN_SECRET = 'admin-secret';
     process.env.FRONTEND_URL_DEV = 'http://localhost:3000';
     process.env.FRONTEND_URL_PROD = 'https://prod.example.com';
   });
@@ -218,7 +235,9 @@ describe('AuthController', () => {
       await signup(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Error al registrar usuario' });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Error al registrar usuario' })
+      );
     });
   });
 
@@ -239,7 +258,9 @@ describe('AuthController', () => {
     it('should authenticate user and set cookie', async () => {
       const req = {
         body: { email: 'user@example.com', password: 'Secret123!' },
-      } as Request;
+        headers: {},
+        ip: '127.0.0.1',
+      } as unknown as Request;
       const res = createMockResponse();
       const user = {
         id: 1,
@@ -263,6 +284,8 @@ describe('AuthController', () => {
         'jwt-token',
         expect.objectContaining({ httpOnly: true })
       );
+      // Debe registrar una sesión de usuario
+      expect(prismaMock.userSession.upsert).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         message: 'Inicio de sesión exitoso',
         user: {
@@ -448,7 +471,9 @@ describe('AuthController', () => {
       await getProfile(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Error al obtener perfil' });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Error al obtener perfil' })
+      );
     });
   });
 
@@ -478,6 +503,8 @@ describe('AuthController', () => {
       const [callPayload, , callOptions] = jwtMock.sign.mock.calls[0];
       expect(callPayload).toEqual({ userId: 1 });
       expect(callOptions).toEqual({ expiresIn: '1h' });
+      // Debe registrar un PasswordReset
+      expect(prismaMock.passwordReset.create).toHaveBeenCalled();
       expect(sendEmailMock).toHaveBeenCalledWith(
         'user@example.com',
         'Restablecer contraseña',
@@ -565,6 +592,10 @@ describe('AuthController', () => {
         where: { id: 1 },
         data: { password: 'hashed' },
       });
+      expect(prismaMock.passwordReset.updateMany).toHaveBeenCalledWith({
+        where: { token: 'token' },
+        data: { used: true },
+      });
       expect(res.json).toHaveBeenCalledWith({ message: 'Contraseña actualizada' });
     });
 
@@ -629,6 +660,84 @@ describe('AuthController', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Inténtalo de nuevo más tarde',
+      });
+    });
+  });
+
+  describe('adminLogin', () => {
+    it('should return 400 when credentials are missing', async () => {
+      const req = { body: {} } as Request;
+      const res = createMockResponse();
+
+      await adminLogin(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Correo electrónico y contraseña son requeridos',
+      });
+    });
+
+    it('should authenticate admin user and set admin cookie', async () => {
+      const req = {
+        body: { email: 'admin@example.com', password: 'Secret123!' },
+        headers: {},
+        ip: '127.0.0.1',
+      } as unknown as Request;
+      const res = createMockResponse();
+      const user = {
+        id: 1,
+        email: 'admin@example.com',
+        password: 'hashed',
+        nickname: 'Admin',
+        createdAt: new Date(),
+        role: { name: 'admin' },
+      };
+      prismaMock.user.findUnique.mockResolvedValueOnce(user);
+      bcryptMock.compare.mockResolvedValueOnce(true);
+      jwtMock.sign.mockReturnValueOnce('admin-jwt-token');
+
+      await adminLogin(req, res);
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'admin@example.com' },
+        include: { role: true },
+      });
+      expect(res.cookie).toHaveBeenCalledWith(
+        'adminAuthToken',
+        'admin-jwt-token',
+        expect.objectContaining({ httpOnly: true })
+      );
+      expect(prismaMock.userSession.upsert).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Inicio de sesión de administrador exitoso',
+        user: expect.objectContaining({
+          email: 'admin@example.com',
+          role: 'admin',
+        }),
+      });
+    });
+
+    it('should return 403 when user is not admin', async () => {
+      const req = {
+        body: { email: 'user@example.com', password: 'Secret123!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const user = {
+        id: 1,
+        email: 'user@example.com',
+        password: 'hashed',
+        nickname: 'User',
+        createdAt: new Date(),
+        role: { name: 'user' },
+      };
+      prismaMock.user.findUnique.mockResolvedValueOnce(user);
+      bcryptMock.compare.mockResolvedValueOnce(true);
+
+      await adminLogin(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Acceso restringido a administradores',
       });
     });
   });

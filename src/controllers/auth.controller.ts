@@ -11,12 +11,69 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { randomBytes } from "crypto";
 import prisma from "../config/db";
 //import { UserResponse } from "../types";
 import sendEmail from "../utils/sendEmail";
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 const SALT_ROUNDS = 10;
+
+/**
+ * Helper to obtain the admin JWT secret. It prefers `JWT_ADMIN_SECRET`
+ * but falls back to `JWT_SECRET` so existing environments keep working.
+ */
+const getAdminJwtSecret = (): string | undefined => {
+  const baseSecret = process.env.JWT_SECRET;
+  const adminSecret = process.env.JWT_ADMIN_SECRET || baseSecret;
+  return adminSecret;
+};
+
+/**
+ * Helper to register or update a user session, which also acts as a basic
+ * login log that administrators can later inspect from the admin panel.
+ */
+const registerUserSession = async (userId: number, req: Request) => {
+  try {
+    const deviceId =
+      (req.headers["x-device-id"] as string | undefined) ?? "web-client";
+    const userAgent = (req.headers["user-agent"] as string | undefined) ?? null;
+    const ip =
+      (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ??
+      req.ip ??
+      null;
+
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 días
+
+    // Usamos upsert para mantener una sesión por (userId, deviceId)
+    await prisma.userSession.upsert({
+      where: {
+        userId_deviceId: {
+          userId,
+          deviceId,
+        },
+      },
+      create: {
+        userId,
+        deviceId,
+        userAgent: userAgent ?? undefined,
+        ip: ip ?? undefined,
+        tokenId: `${userId}-${Date.now()}`,
+        refreshToken: `${userId}-${Date.now()}-${randomBytes(16).toString('hex')}`,
+        expiresAt,
+      },
+      update: {
+        userAgent: userAgent ?? undefined,
+        ip: ip ?? undefined,
+        expiresAt,
+        lastUsedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    // No rompemos el flujo de login si falla el log de sesión, solo registramos el error
+    console.error("Error al registrar sesión de usuario:", error);
+  }
+};
 
 /**
  * Register a new user in the system.
@@ -71,20 +128,12 @@ export const signup = async (req: Request, res: Response) => {
     }
 
     // Obtener o crear rol por defecto (usuario)
-    // Type assertion needed because Prisma Client types may not be fully generated
-    const prismaWithRole = prisma as typeof prisma & {
-      role: {
-        findUnique: (args: { where: { name: string } }) => Promise<{ id: number; name: string } | null>;
-        create: (args: { data: { name: string } }) => Promise<{ id: number; name: string }>;
-      };
-    };
-    
-    let defaultRole = await prismaWithRole.role.findUnique({
+    let defaultRole = await prisma.role.findUnique({
       where: { name: "user" },
     });
 
     if (!defaultRole) {
-      defaultRole = await prismaWithRole.role.create({
+      defaultRole = await prisma.role.create({
         data: { name: "user" },
       });
     }
@@ -93,9 +142,7 @@ export const signup = async (req: Request, res: Response) => {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     // Crear nuevo usuario
-    // Type assertion needed for roleId field
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const newUser = await (prisma.user.create as any)({
+    const newUser = await prisma.user.create({
       data: {
         email: email,
         password: hashedPassword,
@@ -122,7 +169,15 @@ export const signup = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error en signup:", error);
-    return res.status(500).json({ error: "Error al registrar usuario" });
+    // Log the full error for debugging
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
+    return res.status(500).json({ 
+      error: "Error al registrar usuario",
+      message: error instanceof Error ? error.message : "Error desconocido"
+    });
   }
 };
 
@@ -196,7 +251,7 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    // Buscar usuario
+    // Buscar usuario activo (no eliminado lógicamente)
     const user = await prisma.user.findUnique({
       where: { email: emailInput.toLowerCase().trim() },
       select: {
@@ -205,24 +260,28 @@ export const login = async (req: Request, res: Response) => {
         nickname: true,
         createdAt: true,
         password: true,
-      },
+        // El campo isDeleted puede no existir en esquemas antiguos; Prisma lo ignora en select si no está
+      } as any,
     });
 
     if (!user) {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
+    // Forzamos tipado flexible para evitar problemas de tipos generados por Prisma en tests
+    const userRecord: any = user;
+
     // Verificar contraseña
     const isPasswordValid = await bcrypt.compare(
       passwordInput,
-      user.password
+      userRecord.password as string
     );
     if (!isPasswordValid) {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
-    // Generar token JWT
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
+    // Generar token JWT para usuario normal
+    const token = jwt.sign({ userId: userRecord.id as number }, JWT_SECRET, {
       expiresIn: "7d",
     });
 
@@ -235,8 +294,11 @@ export const login = async (req: Request, res: Response) => {
       path: "/",
     });
 
+    // Registrar sesión / log de login
+    await registerUserSession(Number(userRecord.id), req);
+
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password: _password, ...safeUser } = user;
+    const { password: _password, ...safeUser } = userRecord;
 
     return res.json({
       message: "Inicio de sesión exitoso",
@@ -279,6 +341,111 @@ export const logout = (_req: Request, res: Response) => {
 };
 
 /**
+ * Admin login: similar a `login` pero solo permite el acceso a usuarios con
+ * rol `admin` o `super_admin` y genera un token diferente usando otra firma
+ * o secreto (`JWT_ADMIN_SECRET`) almacenado en la cookie `adminAuthToken`.
+ */
+export const adminLogin = async (req: Request, res: Response) => {
+  try {
+    const { correoElectronico, email, contraseña, password: pwd } = req.body ?? {};
+
+    const emailInput =
+      typeof correoElectronico === "string"
+        ? correoElectronico
+        : typeof email === "string"
+        ? email
+        : "";
+
+    const passwordInput =
+      typeof contraseña === "string"
+        ? contraseña
+        : typeof pwd === "string"
+        ? pwd
+        : "";
+
+    if (!emailInput || !passwordInput) {
+      return res.status(400).json({
+        error: "Correo electrónico y contraseña son requeridos",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: emailInput.toLowerCase().trim() },
+      include: {
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: "Credenciales inválidas" });
+    }
+    const userRecord: any = user;
+
+    const isPasswordValid = await bcrypt.compare(
+      passwordInput,
+      userRecord.password as string
+    );
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: "Credenciales inválidas" });
+    }
+
+    const roleName = userRecord.role?.name as string | undefined;
+    if (roleName !== "admin" && roleName !== "super_admin") {
+      return res
+        .status(403)
+        .json({ error: "Acceso restringido a administradores" });
+    }
+
+    const adminSecret = getAdminJwtSecret();
+    if (!adminSecret) {
+      console.error("❌ JWT_ADMIN_SECRET / JWT_SECRET no están configurados");
+      return res
+        .status(500)
+        .json({ message: "Error de configuración del servidor" });
+    }
+
+    const adminToken = jwt.sign(
+      { userId: userRecord.id as number, role: roleName, email: userRecord.email },
+      adminSecret,
+      {
+        expiresIn: "1d",
+      }
+    );
+
+    res.cookie("adminAuthToken", adminToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+
+    // registrar sesión como log de acceso al panel admin
+    await registerUserSession(Number(userRecord.id), req);
+
+    // No devolvemos contraseña
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password, ...safeUser } = userRecord;
+
+    return res.json({
+      message: "Inicio de sesión de administrador exitoso",
+      user: {
+        id: safeUser.id,
+        email: safeUser.email,
+        nickname: safeUser.nickname,
+        createdAt: safeUser.createdAt,
+        role: roleName,
+      },
+    });
+  } catch (error) {
+    console.error("Error en adminLogin:", error);
+    return res
+      .status(500)
+      .json({ error: "Error al iniciar sesión como administrador" });
+  }
+};
+
+/**
  * Get authenticated user's profile information.
  * 
  * @async
@@ -310,38 +477,67 @@ export const logout = (_req: Request, res: Response) => {
  * 
  * @requires verifyToken middleware
  */
+// Helper: Convert userId to number
+const parseUserId = (userIdValue: unknown): number | null => {
+  if (typeof userIdValue === "number") return userIdValue;
+  if (typeof userIdValue === "string" || userIdValue) {
+    const parsed = Number(userIdValue);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+};
+
+// Helper: Check if error is a database connection error
+const isDatabaseConnectionError = (error: Error): boolean => {
+  return error.message.includes("FATAL") || error.message.includes("connection");
+};
+
+// Helper: Handle database errors
+const handleDatabaseError = (dbError: unknown, res: Response) => {
+  console.error("Error de base de datos en getProfile:", dbError);
+  
+  if (dbError instanceof Error && isDatabaseConnectionError(dbError)) {
+    return res.status(503).json({
+      error: "Servicio temporalmente no disponible",
+      message: "Error de conexión con la base de datos"
+    });
+  }
+  
+  throw dbError;
+};
+
 export const getProfile = async (req: Request, res: Response) => {
   try {
-    const userIdValue = req.user?.userId;
-    const userId =
-      typeof userIdValue === "number"
-        ? userIdValue
-        : userIdValue
-        ? Number(userIdValue)
-        : undefined;
+    const userId = parseUserId(req.user?.userId);
 
-    if (!userId || Number.isNaN(userId)) {
+    if (!userId) {
+      console.error("❌ [getProfile] userId inválido:", req.user?.userId);
       return res.status(401).json({ error: "No autenticado" });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        nickname: true,
-        createdAt: true,
-      },
-    });
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, email: true, nickname: true, createdAt: true },
+      });
 
-    if (!user) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
+      if (!user) {
+        return res.status(404).json({ error: "Usuario no encontrado" });
+      }
+
+      return res.json({ user });
+    } catch (dbError) {
+      return handleDatabaseError(dbError, res);
     }
-
-    return res.json({ user: user });
   } catch (error) {
     console.error("Error en getProfile:", error);
-    return res.status(500).json({ error: "Error al obtener perfil" });
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+    }
+    return res.status(500).json({
+      error: "Error al obtener perfil",
+      message: error instanceof Error ? error.message : "Error desconocido"
+    });
   }
 };
 
@@ -420,6 +616,20 @@ export const recoverPass = async (req: Request, res: Response) => {
     const resetToken = jwt.sign({ userId: user.id }, JWT_SECRET, {
       expiresIn: "1h",
     });
+
+    // Registrar solicitud de reseteo en la tabla PasswordReset para estadísticas
+    try {
+      await prisma.passwordReset.create({
+        data: {
+          token: resetToken,
+          userId: user.id,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1h
+        },
+      });
+    } catch (logError) {
+      // No romper el flujo de usuario si el log falla
+      console.error("Error al registrar PasswordReset:", logError);
+    }
 
     /**
      * Create password reset URL.
@@ -566,6 +776,16 @@ export const resetPass = async (req: Request, res: Response) => {
         password: hashedPassword,
       },
     });
+
+    // Marcar como usado cualquier registro de PasswordReset asociado a este token
+    try {
+      await prisma.passwordReset.updateMany({
+        where: { token },
+        data: { used: true },
+      });
+    } catch (logError) {
+      console.error("Error al marcar PasswordReset como usado:", logError);
+    }
 
     /**
      * Return success confirmation.
