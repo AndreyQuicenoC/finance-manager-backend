@@ -65,6 +65,50 @@ describe('AdminController', () => {
       expect(prismaMock.userSession.findMany).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({ logs });
     });
+
+    it('should filter logs by numeric userId in query', async () => {
+      const req = { query: { userId: '42' } } as unknown as Request;
+      const res = createMockResponse();
+
+      const logs = [{ id: 1, userId: 42 }];
+      prismaMock.userSession.findMany.mockResolvedValueOnce(logs);
+
+      await getLoginLogs(req, res);
+
+      expect(prismaMock.userSession.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 42 },
+        })
+      );
+      expect(res.json).toHaveBeenCalledWith({ logs });
+    });
+
+    it('should ignore invalid userId and still return logs', async () => {
+      const req = { query: { userId: 'not-a-number' } } as unknown as Request;
+      const res = createMockResponse();
+
+      const logs = [{ id: 1, userId: 1 }];
+      prismaMock.userSession.findMany.mockResolvedValueOnce(logs);
+
+      await getLoginLogs(req, res);
+
+      expect(prismaMock.userSession.findMany).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({ logs });
+    });
+
+    it('should return 500 when getLoginLogs fails', async () => {
+      const req = { query: {} } as unknown as Request;
+      const res = createMockResponse();
+
+      prismaMock.userSession.findMany.mockRejectedValueOnce(new Error('db error'));
+
+      await getLoginLogs(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Error al obtener historial de logeos',
+      });
+    });
   });
 
   describe('deleteUserByAdmin', () => {
@@ -100,6 +144,20 @@ describe('AdminController', () => {
         message: 'Usuario eliminado correctamente',
       });
     });
+
+    it('should return 500 when deleteUserByAdmin fails unexpectedly', async () => {
+      const req = { params: { id: '1' } } as unknown as Request;
+      const res = createMockResponse();
+      prismaMock.user.findUnique.mockResolvedValueOnce({ id: 1 });
+      prismaMock.user.update.mockRejectedValueOnce(new Error('db error'));
+
+      await deleteUserByAdmin(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Error al eliminar usuario por administrador',
+      });
+    });
   });
 
   describe('getAllUsersForAdmin', () => {
@@ -112,6 +170,19 @@ describe('AdminController', () => {
       await getAllUsersForAdmin(req, res);
 
       expect(res.json).toHaveBeenCalledWith({ users });
+    });
+
+    it('should return 500 when getAllUsersForAdmin fails', async () => {
+      const req = {} as Request;
+      const res = createMockResponse();
+      prismaMock.user.findMany.mockRejectedValueOnce(new Error('db error'));
+
+      await getAllUsersForAdmin(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Error al obtener usuarios para administración',
+      });
     });
   });
 
@@ -133,6 +204,19 @@ describe('AdminController', () => {
           { userId: 1, resetCount: 3 },
           { userId: 2, resetCount: 2 },
         ],
+      });
+    });
+
+    it('should return 500 when getPasswordResetStats fails', async () => {
+      const req = {} as Request;
+      const res = createMockResponse();
+      prismaMock.passwordReset.count.mockRejectedValueOnce(new Error('db error'));
+
+      await getPasswordResetStats(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Error al obtener estadísticas de reseteos',
       });
     });
   });
@@ -167,6 +251,36 @@ describe('AdminController', () => {
           adminCount: 5,
         })
       );
+    });
+
+    it('should return 400 when date params are invalid', async () => {
+      const req = {
+        query: { from: 'invalid-date', to: 'also-invalid' },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await getOverviewStats(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Parámetros de fecha inválidos',
+      });
+    });
+
+    it('should return 500 when getOverviewStats fails unexpectedly', async () => {
+      const req = {
+        query: { from: '2025-01-01', to: '2025-01-31' },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      prismaMock.transaction.count.mockRejectedValueOnce(new Error('db error'));
+
+      await getOverviewStats(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Error al obtener estadísticas generales',
+      });
     });
   });
 
@@ -203,6 +317,67 @@ describe('AdminController', () => {
       expect(res.json).toHaveBeenCalledWith({
         message: 'Administrador creado exitosamente',
         user: createdUser,
+      });
+    });
+
+    it('should return 400 when email is already registered', async () => {
+      const req = {
+        body: { email: 'admin@test.com', password: 'Secret123!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      prismaMock.user.findUnique.mockResolvedValueOnce({ id: 1 });
+
+      await createAdminUser(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'El correo electrónico ya está registrado',
+      });
+    });
+
+    it('should create admin role when it does not exist', async () => {
+      const req = {
+        body: { email: 'newadmin@test.com', password: 'Secret123!', nickname: 'New' },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      prismaMock.user.findUnique.mockResolvedValueOnce(null);
+      prismaMock.role.findUnique.mockResolvedValueOnce(null);
+      prismaMock.role.create.mockResolvedValueOnce({ id: 5, name: 'admin' });
+      const createdUser = {
+        id: 2,
+        email: 'newadmin@test.com',
+        nickname: 'New',
+        createdAt: new Date(),
+      };
+      prismaMock.user.create.mockResolvedValueOnce(createdUser);
+
+      await createAdminUser(req, res);
+
+      expect(prismaMock.role.create).toHaveBeenCalledWith({
+        data: { name: 'admin' },
+      });
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Administrador creado exitosamente',
+        user: createdUser,
+      });
+    });
+
+    it('should return 500 when createAdminUser fails unexpectedly', async () => {
+      const req = {
+        body: { email: 'admin@test.com', password: 'Secret123!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      prismaMock.user.findUnique.mockRejectedValueOnce(new Error('db error'));
+
+      await createAdminUser(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Error al crear usuario administrador',
       });
     });
   });
@@ -254,6 +429,20 @@ describe('AdminController', () => {
       expect(prismaMock.user.update).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         message: 'Administrador eliminado correctamente',
+      });
+    });
+
+    it('should return 500 when deleteAdminUser fails unexpectedly', async () => {
+      const req = { params: { id: '1' } } as unknown as Request;
+      const res = createMockResponse();
+
+      prismaMock.user.findUnique.mockRejectedValueOnce(new Error('db error'));
+
+      await deleteAdminUser(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Error al eliminar usuario administrador',
       });
     });
   });

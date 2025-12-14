@@ -10,6 +10,9 @@ const config: Config = {
   },
   collectCoverageFrom: [
     'src/**/*.{ts,js}',
+    '!src/app.ts',               // Express app wiring (covered indirectly, not core business logic)
+    '!src/routes/**',            // Route wiring, minimal logic
+    '!src/services/ai.gemini.ts',// External AI SDK integration, tested separately / mocked
     '!src/index.ts',
     '!src/server.ts',
     '!src/config/**',

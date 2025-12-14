@@ -57,6 +57,16 @@ interface TransactionUpdateData {
   tagId?: number;
 }
 
+interface UpdateAccountError {
+  status: number;
+  message: string;
+}
+
+interface UpdateAccountResult {
+  success: boolean;
+  error?: UpdateAccountError;
+}
+
 /**
  * Reverts the financial effect of a deleted transaction and updates the related account balance.
  * This function subtracts or adds the transaction amount depending on whether it was income or expense.
@@ -127,7 +137,7 @@ const revertAccountFromDeletedTransaction = async (res: Response, transactionId:
 const updateAccountRelatedToTransaction = async (
   transaction: TransactionData,
   isUpdate = false
-): Promise<{ success: boolean; error?: any }> => {
+): Promise<UpdateAccountResult> => {
   try {
     const tag = await prisma.tagPocket.findUnique({
       where: { id: transaction.tagId },
