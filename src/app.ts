@@ -25,6 +25,7 @@ import categoryRoutes from "./routes/category.routes";
 import transactionsRoutes from "./routes/transactions.routes";
 import tagPocketRoutes from "./routes/tagPocket.routes";
 import goalRoutes from "./routes/goal.routes";
+import adminRoutes from "./routes/admin.routes";
 
 const app: Application = express();
 
@@ -57,12 +58,17 @@ const corsOptions: cors.CorsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// ✅ cookie parser MUST be before routes that use cookies
+app.use(cookieParser());
 
 // Rutas
 app.use("/api/auth", authRoutes);
-app.use("/api/account", accountRoutes);
-// cookie parser added for send to fronted cookie
-app.use(cookieParser());
+app.use("/api/accounts", accountRoutes); // ✅ Cambiado a plural para coincidir con frontend
+app.use("/api/categories", categoryRoutes); // ✅ Cambiado a plural para coincidir con frontend
+app.use("/api/transactions", transactionsRoutes);
+app.use("/api/tags", tagPocketRoutes); // ✅ Cambiado a plural para coincidir con frontend
+app.use("/api/admin", adminRoutes);
+app.use("/api/goal", goalRoutes);
 
 /**
  * Health check endpoint.
@@ -79,11 +85,6 @@ app.use(cookieParser());
  *   "message": "Server is running"
  * }
  */
-// Rotes
-app.use("/api/category",categoryRoutes);
-app.use("/api/transactions", transactionsRoutes);
-app.use("/api/tag",tagPocketRoutes);
-app.use("/api/goal", goalRoutes);
 
 
 // Health check endpoint
