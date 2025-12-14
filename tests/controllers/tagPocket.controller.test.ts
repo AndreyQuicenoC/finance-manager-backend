@@ -200,6 +200,23 @@ describe('TagPocketController', () => {
         error: 'Error al crear TagPocket',
       });
     });
+
+    it('should return 403 when account exists but belongs to another user', async () => {
+      const req = {
+        user: mockUser,
+        body: { name: 'Test Tag', accountId: 1 },
+      } as unknown as Request;
+      const res = createMockResponse();
+      prismaMock.account.findFirst.mockResolvedValueOnce(null as any);
+
+      await createTagPocket(req, res);
+
+      expect(prismaMock.tagPocket.create).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'La cuenta no existe o no pertenece a tu usuario',
+      });
+    });
   });
 
   describe('getAllTags', () => {

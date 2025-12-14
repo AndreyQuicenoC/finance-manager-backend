@@ -91,6 +91,7 @@ describe('AuthController', () => {
     jest.clearAllMocks();
     process.env.JWT_SECRET = 'secret';
     process.env.JWT_ADMIN_SECRET = 'admin-secret';
+    process.env.ACCESS_SECRET = 'access-secret';
     process.env.FRONTEND_URL_DEV = 'http://localhost:3000';
     process.env.FRONTEND_URL_PROD = 'https://prod.example.com';
   });

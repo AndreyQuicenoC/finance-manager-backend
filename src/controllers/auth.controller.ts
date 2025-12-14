@@ -161,7 +161,7 @@ export const signup = async (req: Request, res: Response) => {
     const token = jwt.sign({ userId: newUser.id }, JWT_SECRET, {
       expiresIn: "7d",
     });
-
+    
     return res.status(201).json({
       message: "Usuario registrado exitosamente",
       token,
@@ -261,27 +261,24 @@ export const login = async (req: Request, res: Response) => {
         createdAt: true,
         password: true,
         // El campo isDeleted puede no existir en esquemas antiguos; Prisma lo ignora en select si no está
-      } as any,
+      },
     });
 
     if (!user) {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
-    // Forzamos tipado flexible para evitar problemas de tipos generados por Prisma en tests
-    const userRecord: any = user;
-
     // Verificar contraseña
     const isPasswordValid = await bcrypt.compare(
       passwordInput,
-      userRecord.password as string
+      user.password
     );
     if (!isPasswordValid) {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
     // Generar token JWT para usuario normal
-    const token = jwt.sign({ userId: userRecord.id as number }, JWT_SECRET, {
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
       expiresIn: "7d",
     });
 
@@ -295,10 +292,10 @@ export const login = async (req: Request, res: Response) => {
     });
 
     // Registrar sesión / log de login
-    await registerUserSession(Number(userRecord.id), req);
+    await registerUserSession(user.id, req);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password: _password, ...safeUser } = userRecord;
+    const { password: _password, ...safeUser } = user;
 
     return res.json({
       message: "Inicio de sesión exitoso",
@@ -379,17 +376,16 @@ export const adminLogin = async (req: Request, res: Response) => {
     if (!user) {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
-    const userRecord: any = user;
 
     const isPasswordValid = await bcrypt.compare(
       passwordInput,
-      userRecord.password as string
+      user.password
     );
     if (!isPasswordValid) {
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
-    const roleName = userRecord.role?.name as string | undefined;
+    const roleName = user.role?.name as string | undefined;
     if (roleName !== "admin" && roleName !== "super_admin") {
       return res
         .status(403)
@@ -405,7 +401,7 @@ export const adminLogin = async (req: Request, res: Response) => {
     }
 
     const adminToken = jwt.sign(
-      { userId: userRecord.id as number, role: roleName, email: userRecord.email },
+      { userId: user.id, role: roleName, email: user.email },
       adminSecret,
       {
         expiresIn: "1d",
@@ -421,11 +417,11 @@ export const adminLogin = async (req: Request, res: Response) => {
     });
 
     // registrar sesión como log de acceso al panel admin
-    await registerUserSession(Number(userRecord.id), req);
+    await registerUserSession(user.id, req);
 
     // No devolvemos contraseña
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password, ...safeUser } = userRecord;
+    const { password, ...safeUser } = user;
 
     return res.json({
       message: "Inicio de sesión de administrador exitoso",

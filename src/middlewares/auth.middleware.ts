@@ -13,7 +13,7 @@ import { NextFunction, Request, Response } from "express";
 declare module "express-serve-static-core" {
   interface Request {
     user?: {
-      userId: string;
+      userId: number | string;
       email: string;
       /**
        * Optional role of the authenticated user.
@@ -28,13 +28,13 @@ declare module "express-serve-static-core" {
 
 export function generateAccessToken(userId: number, email: string) {
   const ACCESS_SECRET = process.env.ACCESS_SECRET as string;
-  return jwt.sign({ id: userId, email }, ACCESS_SECRET, { expiresIn: "15m" });
+  return jwt.sign({ userId: userId, email }, ACCESS_SECRET, { expiresIn: "15m" });
 }
 
 // Genera refresh tokens (válidos por 7 días)
 export function generateRefreshToken(userId: number) {
   const REFRESH_SECRET = process.env.REFRESH_SECRET as string;
-  return jwt.sign({ id: userId }, REFRESH_SECRET, { expiresIn: "7d" });
+  return jwt.sign({ userId: userId }, REFRESH_SECRET, { expiresIn: "7d" });
 }
 
 // Helper: Handle JWT verification errors

@@ -25,6 +25,7 @@ import categoryRoutes from "./routes/category.routes";
 import transactionsRoutes from "./routes/transactions.routes";
 import tagPocketRoutes from "./routes/tagPocket.routes";
 import goalRoutes from "./routes/goal.routes";
+import chatRoutes from "./routes/chat.routes";
 import adminRoutes from "./routes/admin.routes";
 
 const app: Application = express();
@@ -69,6 +70,7 @@ app.use("/api/transactions", transactionsRoutes);
 app.use("/api/tags", tagPocketRoutes); // ✅ Cambiado a plural para coincidir con frontend
 app.use("/api/admin", adminRoutes);
 app.use("/api/goal", goalRoutes);
+app.use("/api/chat", chatRoutes);
 
 /**
  * Health check endpoint.

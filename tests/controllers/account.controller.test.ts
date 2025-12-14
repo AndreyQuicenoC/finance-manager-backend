@@ -97,6 +97,36 @@ describe('AccountController', () => {
   });
 
   describe('getAccountsByUser', () => {
+    it('should return accounts filtered by userId in params', async () => {
+      const req = { params: { userId: '5' }, query: {} } as unknown as Request;
+      const res = createMockResponse();
+      const accounts = [{ id: 1, userId: 5 }];
+      prismaMock.account.findMany.mockResolvedValueOnce(accounts as any);
+
+      await getAccountsByUser(req, res);
+
+      expect(prismaMock.account.findMany).toHaveBeenCalledWith({
+        where: { userId: 5 },
+        include: { category: true, tags: true },
+      });
+      expect(res.json).toHaveBeenCalledWith(accounts);
+    });
+
+    it('should return all accounts when no userId is provided', async () => {
+      const req = { params: {}, query: {} } as unknown as Request;
+      const res = createMockResponse();
+      const accounts = [{ id: 1, userId: 1 }, { id: 2, userId: 2 }];
+      prismaMock.account.findMany.mockResolvedValueOnce(accounts as any);
+
+      await getAccountsByUser(req, res);
+
+      expect(prismaMock.account.findMany).toHaveBeenCalledWith({
+        where: {},
+        include: { category: true, tags: true },
+      });
+      expect(res.json).toHaveBeenCalledWith(accounts);
+    });
+
     it('should return 500 when fetching accounts fails', async () => {
       const req = { params: { userId: '5' } } as unknown as Request;
       const res = createMockResponse();

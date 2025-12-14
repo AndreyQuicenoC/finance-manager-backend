@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
+import { Prisma } from "@prisma/client";
 import prisma from "../config/db";
 
 const SALT_ROUNDS = 10;
@@ -71,7 +72,7 @@ export const deleteUserByAdmin = async (req: Request, res: Response) => {
       data: {
         // borrado lógico
         isDeleted: true,
-      } as any,
+      } as Prisma.UserUpdateInput,
     });
 
     return res.json({ message: "Usuario eliminado correctamente" });
@@ -91,7 +92,7 @@ export const getAllUsersForAdmin = async (_req: Request, res: Response) => {
     const users = await prisma.user.findMany({
       where: {
         // En esquemas antiguos isDeleted puede no existir, Prisma lo ignora
-      } as any,
+      } as Prisma.UserWhereInput,
       select: {
         id: true,
         email: true,
@@ -176,7 +177,7 @@ export const getOverviewStats = async (req: Request, res: Response) => {
     });
 
     const totalUsers = await prisma.user.count({
-      where: {} as any,
+      where: {} as Prisma.UserWhereInput,
     });
 
     const adminCount = await prisma.user.count({
@@ -302,7 +303,7 @@ export const deleteAdminUser = async (req: Request, res: Response) => {
       where: { id: userId },
       data: {
         isDeleted: true,
-      } as any,
+      } as Prisma.UserUpdateInput,
     });
 
     return res.json({ message: "Administrador eliminado correctamente" });

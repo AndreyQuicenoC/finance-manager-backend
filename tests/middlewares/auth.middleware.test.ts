@@ -74,6 +74,20 @@ describe('verifyToken middleware', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it('should respond with 500 when JWT_SECRET is not configured', () => {
+    const { req, res, next } = createContext();
+    req.cookies.authToken = 'token';
+    delete process.env.JWT_SECRET;
+
+    verifyToken(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Error de configuración del servidor',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
   /**
    * Verifies successful authentication with valid token
    * @test Valid token - Should attach user data to request
@@ -187,7 +201,7 @@ describe('Token Generation', () => {
       expect(typeof token).toBe('string');
       // Verify JWT sign was called with correct parameters
       expect(jwtMock.sign).toHaveBeenCalledWith(
-        { id: 123, email: 'user@example.com' },
+        { userId: 123, email: 'user@example.com' },
         'access-secret',
         { expiresIn: '15m' }
       );
@@ -203,7 +217,7 @@ describe('Token Generation', () => {
       expect(typeof token).toBe('string');
       // Verify JWT sign was called with correct parameters
       expect(jwtMock.sign).toHaveBeenCalledWith(
-        { id: 456 },
+        { userId: 456 },
         'refresh-secret',
         { expiresIn: '7d' }
       );
@@ -278,6 +292,70 @@ describe('verifyAdmin middleware', () => {
     });
     expect(next).not.toHaveBeenCalled();
   });
+
+  it('should respond 500 when admin secrets are not configured', () => {
+    const { req, res, next } = createContext();
+    req.cookies.adminAuthToken = 'admintoken';
+    delete process.env.JWT_ADMIN_SECRET;
+    delete process.env.JWT_SECRET;
+
+    verifyAdmin(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Error de configuración del servidor',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('should respond 401 when admin token payload is invalid', () => {
+    const { req, res, next } = createContext();
+    req.cookies.adminAuthToken = 'admintoken';
+    (jwtMock.verify as any).mockReturnValueOnce({} as any);
+
+    verifyAdmin(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Invalid token payload',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('should respond 401 when admin token is expired', () => {
+    const { req, res, next } = createContext();
+    req.cookies.adminAuthToken = 'admintoken';
+    const error = new Error('expired');
+    (error as any).name = 'TokenExpiredError';
+    (jwtMock.verify as any).mockImplementationOnce(() => {
+      throw error;
+    });
+
+    verifyAdmin(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Token has expired',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('should respond 500 for unexpected errors in verifyAdmin', () => {
+    const { req, res, next } = createContext();
+    req.cookies.adminAuthToken = 'admintoken';
+    const error = new Error('unexpected');
+    (jwtMock.verify as any).mockImplementationOnce(() => {
+      throw error;
+    });
+
+    verifyAdmin(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Inténtalo de nuevo más tarde',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
 });
 
 describe('verifySuperAdmin middleware', () => {
@@ -325,6 +403,24 @@ describe('verifySuperAdmin middleware', () => {
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({
       message: 'Acceso de súper administrador requerido',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('should respond 401 when super admin token is expired', () => {
+    const { req, res, next } = createContext();
+    req.cookies.adminAuthToken = 'admintoken';
+    const error = new Error('expired');
+    (error as any).name = 'TokenExpiredError';
+    (jwtMock.verify as any).mockImplementationOnce(() => {
+      throw error;
+    });
+
+    verifySuperAdmin(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Token has expired',
     });
     expect(next).not.toHaveBeenCalled();
   });
