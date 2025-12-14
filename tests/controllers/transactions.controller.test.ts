@@ -17,11 +17,13 @@ jest.mock('../../src/config/db', () => ({
     transaction: {
       create: jest.fn(),
       findMany: jest.fn(),
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
     },
     tagPocket: {
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
     },
     account: {
@@ -32,6 +34,7 @@ jest.mock('../../src/config/db', () => ({
 
 const prismaMock = prisma as jest.Mocked<typeof prisma>;
 const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+const mockUser = { userId: 1 };
 
 const createMockResponse = () => {
   return {
@@ -51,8 +54,18 @@ describe('TransactionsController', () => {
   });
 
   describe('getAllTransactions', () => {
+    it('should return 401 when user is not authenticated', async () => {
+      const req = {} as unknown as Request;
+      const res = createMockResponse();
+
+      await getAllTransactions(req, res);
+
+      expect(prismaMock.transaction.findMany).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ error: 'No autenticado' });
+    });
     it('should return all transactions', async () => {
-      const req = {} as Request;
+      const req = { user: mockUser } as unknown as Request;
       const res = createMockResponse();
       const transactions = [
         { id: 1, amount: 100, isIncome: true, tag: { id: 1 } },
@@ -63,13 +76,26 @@ describe('TransactionsController', () => {
       await getAllTransactions(req, res);
 
       expect(prismaMock.transaction.findMany).toHaveBeenCalledWith({
-        include: { tag: true },
+        where: {
+          tag: {
+            account: {
+              userId: mockUser.userId,
+            },
+          },
+        },
+        include: {
+          tag: {
+            include: {
+              account: true,
+            },
+          },
+        },
       });
       expect(res.json).toHaveBeenCalledWith(transactions);
     });
 
     it('should return 500 when fetching fails', async () => {
-      const req = {} as Request;
+      const req = { user: mockUser } as unknown as Request;
       const res = createMockResponse();
       prismaMock.transaction.findMany.mockRejectedValueOnce(new Error('Database error'));
 
@@ -81,8 +107,21 @@ describe('TransactionsController', () => {
   });
 
   describe('getTransactionById', () => {
+    it('should return 401 when user is not authenticated', async () => {
+      const req = {
+        params: { id: '1' },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await getTransactionById(req, res);
+
+      expect(prismaMock.transaction.findFirst).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ error: 'No autenticado' });
+    });
     it('should return transaction when found', async () => {
       const req = {
+        user: mockUser,
         params: { id: '1' },
       } as unknown as Request;
       const res = createMockResponse();
@@ -92,23 +131,37 @@ describe('TransactionsController', () => {
         isIncome: true,
         tag: { id: 1 },
       };
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(transaction as any);
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(transaction as any);
 
       await getTransactionById(req, res);
 
-      expect(prismaMock.transaction.findUnique).toHaveBeenCalledWith({
-        where: { id: 1 },
-        include: { tag: true },
+      expect(prismaMock.transaction.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: 1,
+          tag: {
+            account: {
+              userId: mockUser.userId,
+            },
+          },
+        },
+        include: {
+          tag: {
+            include: {
+              account: true,
+            },
+          },
+        },
       });
       expect(res.json).toHaveBeenCalledWith(transaction);
     });
 
     it('should return 404 when transaction is not found', async () => {
       const req = {
+        user: mockUser,
         params: { id: '999' },
       } as unknown as Request;
       const res = createMockResponse();
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(null);
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(null);
 
       await getTransactionById(req, res);
 
@@ -118,10 +171,11 @@ describe('TransactionsController', () => {
 
     it('should return 500 when fetching fails', async () => {
       const req = {
+        user: mockUser,
         params: { id: '1' },
       } as unknown as Request;
       const res = createMockResponse();
-      prismaMock.transaction.findUnique.mockRejectedValueOnce(new Error('Database error'));
+      prismaMock.transaction.findFirst.mockRejectedValueOnce(new Error('Database error'));
 
       await getTransactionById(req, res);
 
@@ -131,8 +185,104 @@ describe('TransactionsController', () => {
   });
 
   describe('createTransaction', () => {
+    it('should return 401 when user is not authenticated', async () => {
+      const req = {
+        body: {
+          amount: 100,
+          isIncome: true,
+          transactionDate: '2024-01-01',
+          tagId: 1,
+        },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await createTransaction(req, res);
+
+      expect(prismaMock.tagPocket.findFirst).not.toHaveBeenCalled();
+      expect(prismaMock.transaction.create).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ error: 'No autenticado' });
+    });
+
+    it('should return 400 when required fields are missing', async () => {
+      const req = {
+        user: mockUser,
+        body: {
+          isIncome: true,
+          transactionDate: '2024-01-01',
+          // amount y tagId faltan
+        },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await createTransaction(req, res);
+
+      expect(prismaMock.tagPocket.findFirst).not.toHaveBeenCalled();
+      expect(prismaMock.transaction.create).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Faltan campos requeridos: amount, isIncome, transactionDate, tagId',
+      });
+    });
+
+    it('should return 403 when tag does not belong to user', async () => {
+      const req = {
+        user: mockUser,
+        body: {
+          amount: 100,
+          isIncome: true,
+          transactionDate: '2024-01-01',
+          tagId: 1,
+        },
+      } as unknown as Request;
+      const res = createMockResponse();
+      prismaMock.tagPocket.findFirst.mockResolvedValueOnce(null as any);
+
+      await createTransaction(req, res);
+
+      expect(prismaMock.transaction.create).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'El tag no existe o no pertenece a tu cuenta',
+      });
+    });
+
+    it('should return 500 when account update fails unexpectedly', async () => {
+      const req = {
+        user: mockUser,
+        body: {
+          amount: 100,
+          isIncome: true,
+          transactionDate: '2024-01-01',
+          tagId: 1,
+        },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const createdTransaction = {
+        id: 1,
+        amount: 100,
+        isIncome: true,
+        tagId: 1,
+      };
+      prismaMock.tagPocket.findFirst.mockResolvedValueOnce({
+        id: 1,
+        account: { userId: mockUser.userId },
+      } as any);
+      prismaMock.transaction.create.mockResolvedValueOnce(createdTransaction as any);
+      // Provocar error dentro de updateAccountRelatedToTransaction
+      prismaMock.tagPocket.findUnique.mockRejectedValueOnce(new Error('Database error'));
+
+      await createTransaction(req, res);
+
+      expect(prismaMock.transaction.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Database error',
+      });
+    });
     it('should create transaction and update account', async () => {
       const req = {
+        user: mockUser,
         body: {
           amount: 100,
           isIncome: true,
@@ -140,7 +290,7 @@ describe('TransactionsController', () => {
           description: 'Test',
           tagId: 1,
         },
-      } as Request;
+      } as unknown as Request;
       const res = createMockResponse();
       const createdTransaction = {
         id: 1,
@@ -152,6 +302,10 @@ describe('TransactionsController', () => {
         id: 1,
         account: { id: 1, money: 1000 },
       };
+      prismaMock.tagPocket.findFirst.mockResolvedValueOnce({
+        id: 1,
+        account: { userId: mockUser.userId },
+      } as any);
       prismaMock.transaction.create.mockResolvedValueOnce(createdTransaction as any);
       prismaMock.tagPocket.findUnique.mockResolvedValueOnce(tag as any);
       prismaMock.account.update.mockResolvedValueOnce({} as any);
@@ -168,13 +322,14 @@ describe('TransactionsController', () => {
 
     it('should return 404 when tag or account is not found', async () => {
       const req = {
+        user: mockUser,
         body: {
           amount: 100,
           isIncome: true,
           transactionDate: '2024-01-01',
           tagId: 1,
         },
-      } as Request;
+      } as unknown as Request;
       const res = createMockResponse();
       const createdTransaction = {
         id: 1,
@@ -182,6 +337,10 @@ describe('TransactionsController', () => {
         isIncome: true,
         tagId: 1,
       };
+      prismaMock.tagPocket.findFirst.mockResolvedValueOnce({
+        id: 1,
+        account: { userId: mockUser.userId },
+      } as any);
       prismaMock.transaction.create.mockResolvedValueOnce(createdTransaction as any);
       prismaMock.tagPocket.findUnique.mockResolvedValueOnce(null);
 
@@ -195,13 +354,14 @@ describe('TransactionsController', () => {
 
     it('should return 409 when account would have negative balance', async () => {
       const req = {
+        user: mockUser,
         body: {
           amount: 1000,
           isIncome: false, // gasto
           transactionDate: '2024-01-01',
           tagId: 1,
         },
-      } as Request;
+      } as unknown as Request;
       const res = createMockResponse();
       const createdTransaction = {
         id: 1,
@@ -213,6 +373,10 @@ describe('TransactionsController', () => {
         id: 1,
         account: { id: 1, money: 500 }, // saldo insuficiente
       };
+      prismaMock.tagPocket.findFirst.mockResolvedValueOnce({
+        id: 1,
+        account: { userId: mockUser.userId },
+      } as any);
       prismaMock.transaction.create.mockResolvedValueOnce(createdTransaction as any);
       prismaMock.tagPocket.findUnique.mockResolvedValueOnce(tag as any);
 
@@ -226,26 +390,47 @@ describe('TransactionsController', () => {
 
     it('should return 500 when creation fails', async () => {
       const req = {
+        user: mockUser,
         body: {
           amount: 100,
           isIncome: true,
           transactionDate: '2024-01-01',
           tagId: 1,
         },
-      } as Request;
+      } as unknown as Request;
       const res = createMockResponse();
+      prismaMock.tagPocket.findFirst.mockResolvedValueOnce({
+        id: 1,
+        account: { userId: mockUser.userId },
+      } as any);
       prismaMock.transaction.create.mockRejectedValueOnce(new Error('Database error'));
 
       await createTransaction(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Error al crear transacción' });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ error: 'Error al crear transacción' })
+      );
     });
   });
 
   describe('updateTransaction', () => {
+    it('should return 401 when user is not authenticated', async () => {
+      const req = {
+        params: { id: '1' },
+        body: { amount: 200 },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await updateTransaction(req, res);
+
+      expect(prismaMock.transaction.findFirst).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ error: 'No autenticado' });
+    });
     it('should return 400 when id is invalid', async () => {
       const req = {
+        user: mockUser,
         params: { id: 'invalid' },
         body: { amount: 200 },
       } as unknown as Request;
@@ -259,11 +444,12 @@ describe('TransactionsController', () => {
 
     it('should return 404 when transaction is not found', async () => {
       const req = {
+        user: mockUser,
         params: { id: '999' },
         body: { amount: 200 },
       } as unknown as Request;
       const res = createMockResponse();
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(null);
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(null);
 
       await updateTransaction(req, res);
 
@@ -273,6 +459,7 @@ describe('TransactionsController', () => {
 
     it('should return 400 when no fields to update', async () => {
       const req = {
+        user: mockUser,
         params: { id: '1' },
         body: {},
       } as unknown as Request;
@@ -283,7 +470,7 @@ describe('TransactionsController', () => {
         isIncome: true,
         tagId: 1,
       };
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(existing as any);
 
       await updateTransaction(req, res);
 
@@ -293,6 +480,7 @@ describe('TransactionsController', () => {
 
     it('should update transaction and account when old transaction is found', async () => {
       const req = {
+        user: mockUser,
         params: { id: '1' },
         body: { amount: 200, isIncome: true, tagId: 1 },
       } as unknown as Request;
@@ -319,7 +507,7 @@ describe('TransactionsController', () => {
         id: 1,
         account: { id: 1, money: 1000 },
       };
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(existing as any);
       prismaMock.transaction.update.mockResolvedValueOnce(updated as any);
       prismaMock.tagPocket.findUnique.mockResolvedValueOnce(tag as any);
       prismaMock.transaction.findUnique.mockResolvedValueOnce(oldTransaction as any);
@@ -329,7 +517,8 @@ describe('TransactionsController', () => {
 
       expect(prismaMock.transaction.update).toHaveBeenCalled();
       expect(prismaMock.tagPocket.findUnique).toHaveBeenCalled();
-      expect(prismaMock.transaction.findUnique).toHaveBeenCalledTimes(2); // una para existing, otra para oldTransaction
+      expect(prismaMock.transaction.findFirst).toHaveBeenCalledTimes(1);
+      expect(prismaMock.transaction.findUnique).toHaveBeenCalledTimes(1); // solo para oldTransaction
       expect(res.json).toHaveBeenCalledWith({
         message: 'Transacción actualizada correctamente',
         transaction: updated,
@@ -338,6 +527,7 @@ describe('TransactionsController', () => {
 
     it('should return 404 when old transaction is not found during update', async () => {
       const req = {
+        user: mockUser,
         params: { id: '1' },
         body: { amount: 200, tagId: 1 },
       } as unknown as Request;
@@ -358,7 +548,7 @@ describe('TransactionsController', () => {
         id: 1,
         account: { id: 1, money: 1000 },
       };
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(existing as any);
       prismaMock.transaction.update.mockResolvedValueOnce(updated as any);
       prismaMock.tagPocket.findUnique.mockResolvedValueOnce(tag as any);
       prismaMock.transaction.findUnique.mockResolvedValueOnce(null); // oldTransaction no encontrada
@@ -373,6 +563,7 @@ describe('TransactionsController', () => {
 
     it('should return 404 when tag or account is not found during update', async () => {
       const req = {
+        user: mockUser,
         params: { id: '1' },
         body: { amount: 200, tagId: 1 },
       } as unknown as Request;
@@ -389,7 +580,7 @@ describe('TransactionsController', () => {
         isIncome: true,
         tagId: 1,
       };
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(existing as any);
       prismaMock.transaction.update.mockResolvedValueOnce(updated as any);
       prismaMock.tagPocket.findUnique.mockResolvedValueOnce(null);
 
@@ -403,6 +594,7 @@ describe('TransactionsController', () => {
 
     it('should return 409 when update would leave negative balance', async () => {
       const req = {
+        user: mockUser,
         params: { id: '1' },
         body: { amount: 2000, isIncome: false, tagId: 1 }, // gasto grande
       } as unknown as Request;
@@ -429,7 +621,7 @@ describe('TransactionsController', () => {
         id: 1,
         account: { id: 1, money: 500 }, // saldo insuficiente
       };
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(existing as any);
       prismaMock.transaction.update.mockResolvedValueOnce(updated as any);
       prismaMock.tagPocket.findUnique.mockResolvedValueOnce(tag as any);
       prismaMock.transaction.findUnique.mockResolvedValueOnce(oldTransaction as any);
@@ -444,6 +636,7 @@ describe('TransactionsController', () => {
 
     it('should handle transactionDate update', async () => {
       const req = {
+        user: mockUser,
         params: { id: '1' },
         body: { transactionDate: '2024-02-01' },
       } as unknown as Request;
@@ -461,7 +654,7 @@ describe('TransactionsController', () => {
         tagId: 1,
         transactionDate: new Date('2024-02-01'),
       };
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(existing as any);
       prismaMock.transaction.update.mockResolvedValueOnce(updated as any);
       prismaMock.tagPocket.findUnique.mockResolvedValueOnce({
         id: 1,
@@ -482,6 +675,7 @@ describe('TransactionsController', () => {
 
     it('should return 500 when update fails', async () => {
       const req = {
+        user: mockUser,
         params: { id: '1' },
         body: { amount: 200 },
       } as unknown as Request;
@@ -492,7 +686,7 @@ describe('TransactionsController', () => {
         isIncome: true,
         tagId: 1,
       };
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(existing as any);
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(existing as any);
       prismaMock.transaction.update.mockRejectedValueOnce(new Error('Database error'));
 
       await updateTransaction(req, res);
@@ -503,12 +697,25 @@ describe('TransactionsController', () => {
   });
 
   describe('deleteTransaction', () => {
+    it('should return 401 when user is not authenticated', async () => {
+      const req = {
+        params: { id: '1' },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await deleteTransaction(req, res);
+
+      expect(prismaMock.transaction.findFirst).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ error: 'No autenticado' });
+    });
     it('should return 404 when transaction is not found', async () => {
       const req = {
+        user: mockUser,
         params: { id: '999' },
       } as unknown as Request;
       const res = createMockResponse();
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(null);
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(null);
 
       await deleteTransaction(req, res);
 
@@ -518,6 +725,7 @@ describe('TransactionsController', () => {
 
     it('should return 404 when transaction tag or account is not found', async () => {
       const req = {
+        user: mockUser,
         params: { id: '1' },
       } as unknown as Request;
       const res = createMockResponse();
@@ -527,8 +735,8 @@ describe('TransactionsController', () => {
         isIncome: true,
         tagId: 1,
       };
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(transaction as any);
-      // Simular que no se encuentra el tag o account
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(transaction as any);
+      // Simular que no se encuentra el tag o account en revertAccountFromDeletedTransaction
       prismaMock.transaction.findUnique.mockResolvedValueOnce({
         id: 1,
         tag: null,
@@ -544,6 +752,7 @@ describe('TransactionsController', () => {
 
     it('should return 409 when deletion would leave negative balance', async () => {
       const req = {
+        user: mockUser,
         params: { id: '1' },
       } as unknown as Request;
       const res = createMockResponse();
@@ -553,8 +762,8 @@ describe('TransactionsController', () => {
         isIncome: true,
         tagId: 1,
       };
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(transaction as any);
-      // Simular transacción con tag y account, pero el saldo quedaría negativo
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(transaction as any);
+      // Simular transacción con tag y account, pero el saldo quedaría negativo en revertAccountFromDeletedTransaction
       prismaMock.transaction.findUnique.mockResolvedValueOnce({
         id: 1,
         amount: 1000,
@@ -578,6 +787,7 @@ describe('TransactionsController', () => {
 
     it('should successfully delete transaction and update account', async () => {
       const req = {
+        user: mockUser,
         params: { id: '1' },
       } as unknown as Request;
       const res = createMockResponse();
@@ -587,8 +797,8 @@ describe('TransactionsController', () => {
         isIncome: true,
         tagId: 1,
       };
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(transaction as any);
-      // Simular transacción con tag y account, saldo suficiente
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(transaction as any);
+      // Simular transacción con tag y account, saldo suficiente en revertAccountFromDeletedTransaction
       prismaMock.transaction.findUnique.mockResolvedValueOnce({
         id: 1,
         amount: 100,
@@ -607,6 +817,7 @@ describe('TransactionsController', () => {
       await deleteTransaction(req, res);
 
       expect(prismaMock.account.update).toHaveBeenCalled();
+      // delete se llama desde revertAccountFromDeletedTransaction y de nuevo en deleteTransaction
       expect(prismaMock.transaction.delete).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         message: 'Transacción eliminada',
@@ -615,6 +826,7 @@ describe('TransactionsController', () => {
 
     it('should return 500 when deletion fails', async () => {
       const req = {
+        user: mockUser,
         params: { id: '1' },
       } as unknown as Request;
       const res = createMockResponse();
@@ -624,7 +836,7 @@ describe('TransactionsController', () => {
         isIncome: true,
         tagId: 1,
       };
-      prismaMock.transaction.findUnique.mockResolvedValueOnce(transaction as any);
+      prismaMock.transaction.findFirst.mockResolvedValueOnce(transaction as any);
       prismaMock.transaction.findUnique.mockResolvedValueOnce({
         id: 1,
         tag: { account: { id: 1, money: 1000 } },
@@ -641,6 +853,7 @@ describe('TransactionsController', () => {
   describe('getTransactionsByDate', () => {
     it('should return 400 when date is missing', async () => {
       const req = {
+        user: mockUser,
         query: {},
       } as unknown as Request;
       const res = createMockResponse();
@@ -651,8 +864,22 @@ describe('TransactionsController', () => {
       expect(res.json).toHaveBeenCalledWith({ error: "Falta el parámetro 'date'" });
     });
 
+    it('should return 401 when user is not authenticated', async () => {
+      const req = {
+        query: { date: '2024-01-01' },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await getTransactionsByDate(req, res);
+
+      expect(prismaMock.transaction.findMany).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ error: 'No autenticado' });
+    });
+
     it('should return transactions for a specific date', async () => {
       const req = {
+        user: mockUser,
         query: { date: '2024-01-01' },
       } as unknown as Request;
       const res = createMockResponse();
@@ -669,6 +896,7 @@ describe('TransactionsController', () => {
 
     it('should return 500 when fetching fails', async () => {
       const req = {
+        user: mockUser,
         query: { date: '2024-01-01' },
       } as unknown as Request;
       const res = createMockResponse();
@@ -684,6 +912,7 @@ describe('TransactionsController', () => {
   describe('getTransactionsByTypeAndDate', () => {
     it('should return 400 when date or type is missing', async () => {
       const req = {
+        user: mockUser,
         query: {},
       } as unknown as Request;
       const res = createMockResponse();
@@ -696,6 +925,7 @@ describe('TransactionsController', () => {
 
     it('should return 400 when type is invalid', async () => {
       const req = {
+        user: mockUser,
         query: { date: '2024-01-01', type: 'invalid' },
       } as unknown as Request;
       const res = createMockResponse();
@@ -708,8 +938,22 @@ describe('TransactionsController', () => {
       });
     });
 
+    it('should return 401 when user is not authenticated', async () => {
+      const req = {
+        query: { date: '2024-01-01', type: 'income' },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await getTransactionsByTypeAndDate(req, res);
+
+      expect(prismaMock.transaction.findMany).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ error: 'No autenticado' });
+    });
+
     it('should return transactions for income type', async () => {
       const req = {
+        user: mockUser,
         query: { date: '2024-01-01', type: 'income' },
       } as unknown as Request;
       const res = createMockResponse();
@@ -726,6 +970,7 @@ describe('TransactionsController', () => {
 
     it('should return transactions for expense type', async () => {
       const req = {
+        user: mockUser,
         query: { date: '2024-01-01', type: 'expense' },
       } as unknown as Request;
       const res = createMockResponse();
@@ -742,6 +987,7 @@ describe('TransactionsController', () => {
 
     it('should return 500 when fetching fails', async () => {
       const req = {
+        user: mockUser,
         query: { date: '2024-01-01', type: 'income' },
       } as unknown as Request;
       const res = createMockResponse();

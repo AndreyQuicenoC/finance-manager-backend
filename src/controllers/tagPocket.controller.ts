@@ -16,17 +16,41 @@ import prisma from "../config/db";
  */
 export const createTagPocket = async (req: Request, res: Response) => {
   try {
+    // Obtener userId del token
+    const userIdValue = req.user?.userId;
+    const userId = typeof userIdValue === "number" 
+      ? userIdValue 
+      : userIdValue 
+      ? Number(userIdValue) 
+      : undefined;
+
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
     const { name, description, accountId } = req.body;
 
     if (!accountId || !name) {
       return res.status(400).json({ error: "Faltan accountId o name" });
     }
 
+    // Verificar que la cuenta pertenece al usuario autenticado
+    const account = await prisma.account.findFirst({
+      where: {
+        id: Number(accountId),
+        userId: userId,
+      },
+    });
+
+    if (!account) {
+      return res.status(403).json({ error: "La cuenta no existe o no pertenece a tu usuario" });
+    }
+
     const tag = await prisma.tagPocket.create({
       data: {
         name,
         description,
-        accountId,
+        accountId: Number(accountId),
       },
     });
 
@@ -38,28 +62,103 @@ export const createTagPocket = async (req: Request, res: Response) => {
 };
 
 /**
- * Retrieves all TagPockets associated with a specific account.
+ * Retrieves all TagPockets for the authenticated user.
  *
  * @async
- * @route GET /tag-pockets/account/:accountId
+ * @route GET /tags
+ * @param {Request} req - Express request object (with user from verifyToken middleware).
+ * @param {Response} res - Express response object returning the list of TagPockets.
+ * @returns {Promise<void>}
+ */
+export const getAllTags = async (req: Request, res: Response) => {
+  try {
+    // Obtener userId del token
+    const userIdValue = req.user?.userId;
+    const userId = typeof userIdValue === "number" 
+      ? userIdValue 
+      : userIdValue 
+      ? Number(userIdValue) 
+      : undefined;
+
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
+    // Filtrar tags por usuario a través de account -> user
+    const tags = await prisma.tagPocket.findMany({
+      where: {
+        account: {
+          userId: userId,
+        },
+      },
+      include: { 
+        transactions: true, 
+        account: true 
+      },
+    });
+
+    return res.json(tags);
+  } catch (error) {
+    console.error("Error obteniendo todos los TagPockets:", error);
+    return res.status(500).json({ error: "Error al obtener TagPockets" });
+  }
+};
+
+/**
+ * Retrieves all TagPockets associated with a specific account (only if account belongs to authenticated user).
+ *
+ * @async
+ * @route GET /tags/:id
  * @param {Request} req - Express request object containing the account ID in params.
- * @param {string} req.params.accountId - ID of the account to retrieve tags from.
+ * @param {string} req.params.id - ID of the account to retrieve tags from.
  * @param {Response} res - Express response object returning the list of TagPockets.
  * @returns {Promise<void>}
  */
 export const getTagsByAccount = async (req: Request, res: Response) => {
   try {
-    const { accountId } = req.params;
+    // Obtener userId del token
+    const userIdValue = req.user?.userId;
+    const userId = typeof userIdValue === "number" 
+      ? userIdValue 
+      : userIdValue 
+      ? Number(userIdValue) 
+      : undefined;
 
-    const tags = await prisma.tagPocket.findMany({
-      where: { accountId: Number(accountId) },
-      include: { transactions: true},
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
+    const { id } = req.params;
+
+    // Verificar que la cuenta pertenece al usuario autenticado
+    const account = await prisma.account.findFirst({
+      where: {
+        id: Number(id),
+        userId: userId,
+      },
     });
 
-    res.json(tags);
+    if (!account) {
+      return res.status(404).json({ error: "Cuenta no encontrada o no pertenece a tu usuario" });
+    }
+
+    const tags = await prisma.tagPocket.findMany({
+      where: { 
+        accountId: Number(id),
+        account: {
+          userId: userId,
+        },
+      },
+      include: { 
+        transactions: true,
+        account: true,
+      },
+    });
+
+    return res.json(tags);
   } catch (error) {
     console.error("Error obteniendo TagPockets:", error);
-    res.status(500).json({ error: "Error al obtener TagPockets" });
+    return res.status(500).json({ error: "Error al obtener TagPockets" });
   }
 };
 
@@ -78,16 +177,33 @@ export const getTagsByAccount = async (req: Request, res: Response) => {
  */
 export const updateTagPocket = async (req: Request, res: Response) => {
     try {
+      // Obtener userId del token
+      const userIdValue = req.user?.userId;
+      const userId = typeof userIdValue === "number" 
+        ? userIdValue 
+        : userIdValue 
+        ? Number(userIdValue) 
+        : undefined;
+
+      if (!userId || Number.isNaN(userId)) {
+        return res.status(401).json({ error: "No autenticado" });
+      }
+
       const { id } = req.params;
       const { name, description } = req.body;
   
-      // Buscar el tag actual
-      const existing = await prisma.tagPocket.findUnique({
-        where: { id: Number(id) },
+      // Buscar el tag y verificar que pertenece al usuario autenticado
+      const existing = await prisma.tagPocket.findFirst({
+        where: { 
+          id: Number(id),
+          account: {
+            userId: userId,
+          },
+        },
       });
   
       if (!existing) {
-        return res.status(404).json({ error: "TagPocket no encontrado" });
+        return res.status(404).json({ error: "TagPocket no encontrado o no pertenece a tu usuario" });
       }
   
       const updated = await prisma.tagPocket.update({
@@ -118,12 +234,38 @@ export const updateTagPocket = async (req: Request, res: Response) => {
  */
 export const deleteTagPocket = async (req: Request, res: Response) => {
   try {
+    // Obtener userId del token
+    const userIdValue = req.user?.userId;
+    const userId = typeof userIdValue === "number" 
+      ? userIdValue 
+      : userIdValue 
+      ? Number(userIdValue) 
+      : undefined;
+
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
     const { id } = req.params;
 
+    // Verificar que el tag pertenece al usuario autenticado
+    const existing = await prisma.tagPocket.findFirst({
+      where: { 
+        id: Number(id),
+        account: {
+          userId: userId,
+        },
+      },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "TagPocket no encontrado o no pertenece a tu usuario" });
+    }
+
     await prisma.tagPocket.delete({ where: { id: Number(id) } });
-    res.json({ message: "TagPocket eliminado" });
+    return res.json({ message: "TagPocket eliminado" });
   } catch (error) {
     console.error("Error eliminando TagPocket:", error);
-    res.status(500).json({ error: "Error al eliminar TagPocket" });
+    return res.status(500).json({ error: "Error al eliminar TagPocket" });
   }
 };

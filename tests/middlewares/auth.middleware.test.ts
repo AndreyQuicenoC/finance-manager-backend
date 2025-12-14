@@ -10,6 +10,8 @@ import jwt from 'jsonwebtoken';
 import verifyToken, {
   generateAccessToken,
   generateRefreshToken,
+  verifyAdmin,
+  verifySuperAdmin,
 } from '../../src/middlewares/auth.middleware';
 
 /**
@@ -80,14 +82,14 @@ describe('verifyToken middleware', () => {
     const { req, res, next } = createContext();
     req.cookies.authToken = 'token';
     jwtMock.verify.mockReturnValueOnce({
-      userId: 'user-1',
+      userId: 1,
       email: 'user@example.com',
     } as any);
 
     verifyToken(req, res, next);
 
     expect(jwtMock.verify).toHaveBeenCalledWith('token', 'secret');
-    expect(req.user).toEqual({ userId: 'user-1', email: 'user@example.com' });
+    expect(req.user).toEqual({ userId: '1', email: 'user@example.com' });
     expect(next).toHaveBeenCalledTimes(1);
     expect(res.status).not.toHaveBeenCalled();
   });
@@ -206,6 +208,125 @@ describe('Token Generation', () => {
         { expiresIn: '7d' }
       );
     });
+  });
+});
+
+describe('verifyAdmin middleware', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.JWT_SECRET = 'secret';
+    process.env.JWT_ADMIN_SECRET = 'admin-secret';
+  });
+
+  const createContext = () => {
+    const req = {
+      cookies: {},
+    } as unknown as Request;
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+    } as unknown as Response;
+    const next = jest.fn() as NextFunction;
+    return { req, res, next };
+  };
+
+  it('should respond 401 when admin token is missing', () => {
+    const { req, res, next } = createContext();
+
+    verifyAdmin(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Autenticación de administrador requerida',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('should allow admin with valid token and role admin', () => {
+    const { req, res, next } = createContext();
+    req.cookies.adminAuthToken = 'admintoken';
+    (jwtMock.verify as any).mockReturnValueOnce({
+      userId: 1,
+      role: 'admin',
+      email: 'admin@example.com',
+    });
+
+    verifyAdmin(req, res, next);
+
+    expect(jwtMock.verify).toHaveBeenCalledWith('admintoken', 'admin-secret');
+    expect(req.user).toEqual({
+      userId: '1',
+      email: 'admin@example.com',
+      role: 'admin',
+    });
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('should forbid non-admin roles', () => {
+    const { req, res, next } = createContext();
+    req.cookies.adminAuthToken = 'token';
+    (jwtMock.verify as any).mockReturnValueOnce({
+      userId: 1,
+      role: 'user',
+    });
+
+    verifyAdmin(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Acceso de administrador requerido',
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+});
+
+describe('verifySuperAdmin middleware', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.JWT_SECRET = 'secret';
+    process.env.JWT_ADMIN_SECRET = 'admin-secret';
+  });
+
+  const createContext = () => {
+    const req = {
+      cookies: {},
+    } as unknown as Request;
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+    } as unknown as Response;
+    const next = jest.fn() as NextFunction;
+    return { req, res, next };
+  };
+
+  it('should allow only super_admin role', () => {
+    const { req, res, next } = createContext();
+    req.cookies.adminAuthToken = 'admintoken';
+    (jwtMock.verify as any).mockReturnValueOnce({
+      userId: 1,
+      role: 'super_admin',
+    });
+
+    verifySuperAdmin(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('should forbid admin role for super admin routes', () => {
+    const { req, res, next } = createContext();
+    req.cookies.adminAuthToken = 'admintoken';
+    (jwtMock.verify as any).mockReturnValueOnce({
+      userId: 1,
+      role: 'admin',
+    });
+
+    verifySuperAdmin(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Acceso de súper administrador requerido',
+    });
+    expect(next).not.toHaveBeenCalled();
   });
 });
 

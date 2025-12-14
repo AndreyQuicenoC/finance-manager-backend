@@ -15,11 +15,11 @@ const router = Router();
 
 router.post("/", verifyToken, createTransaction);
 router.get("/", verifyToken, getAllTransactions);
-router.get("/:id", verifyToken, getTransactionById);
 router.get("/byDate", verifyToken, getTransactionsByDate);
 router.get("/byTypeDate", verifyToken, getTransactionsByTypeAndDate);
-router.put("/", verifyToken, updateTransaction);
-router.delete("/", verifyToken, deleteTransaction);
+router.get("/:id", verifyToken, getTransactionById);
+router.put("/:id", verifyToken, updateTransaction);
+router.delete("/:id", verifyToken, deleteTransaction);
 
 
 export default router;
