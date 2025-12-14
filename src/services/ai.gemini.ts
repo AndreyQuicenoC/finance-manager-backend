@@ -36,8 +36,7 @@ export const askGeminiAI = async (
 
   const prompt = `${context}\n\nPregunta: ${question}`;
 
-  const result = await model.generateContent(prompt);
-  const response = await result.response;
+  const { response } = await model.generateContent(prompt);
   const text = response.text();
 
   return text;
