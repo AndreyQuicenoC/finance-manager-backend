@@ -70,9 +70,7 @@ export const deleteUserByAdmin = async (req: Request, res: Response) => {
       where: { id: userId },
       data: {
         // borrado lógico
-        // en esquemas antiguos este campo puede no existir,
-        // prisma ignorará la clave si no está definido en el cliente
-        ...(true && { isDeleted: true } as any),
+        isDeleted: true,
       } as any,
     });
 
@@ -303,7 +301,7 @@ export const deleteAdminUser = async (req: Request, res: Response) => {
     await prisma.user.update({
       where: { id: userId },
       data: {
-        ...(true && { isDeleted: true } as any),
+        isDeleted: true,
       } as any,
     });
 
