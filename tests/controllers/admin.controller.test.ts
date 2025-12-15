@@ -131,15 +131,34 @@ describe('AdminController', () => {
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
+    it('should return 400 when user is already deleted', async () => {
+      const req = { params: { id: '1' } } as unknown as Request;
+      const res = createMockResponse();
+      prismaMock.user.findUnique.mockResolvedValueOnce({ 
+        id: 1, 
+        deletedAt: new Date() 
+      });
+
+      await deleteUserByAdmin(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'El usuario ya se encuentra eliminado.',
+      });
+    });
+
     it('should soft delete user when exists', async () => {
       const req = { params: { id: '1' } } as unknown as Request;
       const res = createMockResponse();
-      prismaMock.user.findUnique.mockResolvedValueOnce({ id: 1 });
+      prismaMock.user.findUnique.mockResolvedValueOnce({ id: 1, deletedAt: null });
       prismaMock.user.update.mockResolvedValueOnce({});
 
       await deleteUserByAdmin(req, res);
 
-      expect(prismaMock.user.update).toHaveBeenCalled();
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { deletedAt: expect.any(Date) },
+      });
       expect(res.json).toHaveBeenCalledWith({
         message: 'Usuario eliminado correctamente',
       });
@@ -407,12 +426,33 @@ describe('AdminController', () => {
       const res = createMockResponse();
       prismaMock.user.findUnique.mockResolvedValueOnce({
         id: 1,
+        deletedAt: null,
         role: { name: 'user' },
       });
 
       await deleteAdminUser(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Solo se pueden eliminar cuentas con rol administrador',
+      });
+    });
+
+    it('should return 400 when admin is already deleted', async () => {
+      const req = { params: { id: '1' } } as unknown as Request;
+      const res = createMockResponse();
+      prismaMock.user.findUnique.mockResolvedValueOnce({
+        id: 1,
+        deletedAt: new Date(),
+        role: { name: 'admin' },
+      });
+
+      await deleteAdminUser(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'El administrador ya se encuentra eliminado.',
+      });
     });
 
     it('should soft delete admin when valid', async () => {
@@ -420,13 +460,17 @@ describe('AdminController', () => {
       const res = createMockResponse();
       prismaMock.user.findUnique.mockResolvedValueOnce({
         id: 1,
+        deletedAt: null,
         role: { name: 'admin' },
       });
       prismaMock.user.update.mockResolvedValueOnce({});
 
       await deleteAdminUser(req, res);
 
-      expect(prismaMock.user.update).toHaveBeenCalled();
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { deletedAt: expect.any(Date) },
+      });
       expect(res.json).toHaveBeenCalledWith({
         message: 'Administrador eliminado correctamente',
       });
