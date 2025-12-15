@@ -662,7 +662,196 @@ export const recoverPass = async (req: Request, res: Response) => {
     });
   }
 };
+/**
+ * Update authenticated user's profile information (nickname and/or email).
+ * 
+ * @async
+ * @function updateProfile
+ * @param {Request} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {string} [req.body.nickname] - New nickname (optional)
+ * @param {string} [req.body.email] - New email (optional)
+ * @param {Response} res - Express response object
+ * @returns {Promise<Response>} JSON response with updated user data
+ */
+export const updateProfile = async (req: Request, res: Response) => {
+  try {
+    const userId = parseUserId(req.user?.userId);
 
+    if (!userId) {
+      console.error("❌ [updateProfile] userId inválido:", req.user?.userId);
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
+    const { nickname, email } = req.body;
+
+    // Validate that at least one field is provided
+    if (!nickname && !email) {
+      return res.status(400).json({ error: "Debe proporcionar al menos un campo para actualizar" });
+    }
+
+    // If email is being updated, check if it's already in use
+    if (email) {
+      const existingUser = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (existingUser && existingUser.id !== userId) {
+        return res.status(400).json({ error: "El correo electrónico ya está en uso" });
+      }
+    }
+
+    // Update user profile
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(nickname && { nickname }),
+        ...(email && { email }),
+      },
+      select: { id: true, email: true, nickname: true, createdAt: true },
+    });
+
+    return res.json({ 
+      message: "Perfil actualizado exitosamente",
+      user: updatedUser 
+    });
+  } catch (error) {
+    console.error("Error en updateProfile:", error);
+    return res.status(500).json({
+      error: "Error al actualizar perfil",
+      message: error instanceof Error ? error.message : "Error desconocido"
+    });
+  }
+};
+
+/**
+ * Change authenticated user's password.
+ * 
+ * @async
+ * @function changePassword
+ * @param {Request} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.currentPassword - Current password for verification
+ * @param {string} req.body.newPassword - New password
+ * @param {string} req.body.confirmPassword - Password confirmation
+ * @param {Response} res - Express response object
+ * @returns {Promise<Response>} JSON response confirming password change
+ */
+export const changePassword = async (req: Request, res: Response) => {
+  try {
+    const userId = parseUserId(req.user?.userId);
+
+    if (!userId) {
+      console.error("❌ [changePassword] userId inválido:", req.user?.userId);
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    // Validate all fields are provided
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ error: "Todos los campos son requeridos" });
+    }
+
+    // Validate new passwords match
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ error: "Las contraseñas nuevas no coinciden" });
+    }
+
+    // Get user with password
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+    if (!isValidPassword) {
+      return res.status(400).json({ error: "Contraseña actual incorrecta" });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+
+    return res.json({ message: "Contraseña actualizada exitosamente" });
+  } catch (error) {
+    console.error("Error en changePassword:", error);
+    return res.status(500).json({
+      error: "Error al cambiar contraseña",
+      message: error instanceof Error ? error.message : "Error desconocido"
+    });
+  }
+};
+
+/**
+ * Delete authenticated user's account permanently.
+ * 
+ * @async
+ * @function deleteAccount
+ * @param {Request} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.password - Current password for verification
+ * @param {Response} res - Express response object
+ * @returns {Promise<Response>} JSON response confirming account deletion
+ */
+export const deleteAccount = async (req: Request, res: Response) => {
+  try {
+    const userId = parseUserId(req.user?.userId);
+
+    if (!userId) {
+      console.error("❌ [deleteAccount] userId inválido:", req.user?.userId);
+      return res.status(401).json({ error: "No autenticado" });
+    }
+
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: "La contraseña es requerida" });
+    }
+
+    // Get user with password
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    // Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(400).json({ error: "Contraseña incorrecta" });
+    }
+
+    // Delete user (cascade will handle related data)
+    await prisma.user.delete({
+      where: { id: userId },
+    });
+
+    // Clear cookies
+    res.clearCookie("AccessToken");
+    res.clearCookie("RefreshToken");
+    res.clearCookie("deviceId");
+
+    return res.json({ message: "Cuenta eliminada exitosamente" });
+  } catch (error) {
+    console.error("Error en deleteAccount:", error);
+    return res.status(500).json({
+      error: "Error al eliminar cuenta",
+      message: error instanceof Error ? error.message : "Error desconocido"
+    });
+  }
+};
 /**
  * Reset user password using token from recovery email.
  * 
