@@ -1,6 +1,6 @@
-# Guía de Despliegue - Variables de Entorno
+# Guía de Despliegue en Render
 
-Esta guía explica cómo configurar las variables de entorno para el backend en desarrollo y producción.
+Esta guía explica cómo desplegar el backend en Render con configuración automática usando Blueprint (render.yaml).
 
 ## 📋 Variables de Entorno Requeridas
 
@@ -31,83 +31,164 @@ Esta guía explica cómo configurar las variables de entorno para el backend en 
 
 En producción, **NO uses archivos `.env`**. En su lugar, configura las variables de entorno directamente en tu plataforma de hosting.
 
-## 🚀 Configuración por Plataforma
+## 🚀 Despliegue en Render con Blueprint
 
-### Render.com
+Este repositorio incluye un archivo `render.yaml` que configura automáticamente:
+- Web Service (API Backend)
+- PostgreSQL Database
+- Variables de entorno
+- Build y deploy commands
 
-1. Ve a tu servicio en el dashboard de Render
-2. Navega a la pestaña **"Environment"**
-3. Agrega cada variable de entorno:
+### Opción 1: Despliegue Automático (Recomendado)
+
+1. **Conecta tu repositorio a Render:**
+   - Ve a [Render Dashboard](https://dashboard.render.com/)
+   - Click en **"New +"** → **"Blueprint"**
+   - Conecta tu cuenta de GitHub/GitLab
+   - Selecciona este repositorio
+   - Render detectará automáticamente el `render.yaml`
+
+2. **Configura las variables secretas:**
+   
+   Render te pedirá configurar las siguientes variables (marcadas como `sync: false` en render.yaml):
+   
+   ```
+   SENDGRID_API_KEY=tu-api-key-de-sendgrid
+   SENDGRID_FROM_EMAIL=noreply@tudominio.com
+   GEMINI_API_KEY=tu-api-key-de-gemini
+   ```
+
+3. **Actualiza la URL del frontend:**
+   
+   En el dashboard de Render, edita la variable:
+   ```
+   FRONTEND_URL=https://tu-frontend-url.com
+   ```
+
+4. **Deploy:**
+   - Click en **"Apply"**
+   - Render creará automáticamente:
+     - Base de datos PostgreSQL
+     - Servicio web del backend
+     - Todas las conexiones necesarias
+   - El primer despliegue toma ~5-10 minutos
+
+### Opción 2: Despliegue Manual
+
+Si prefieres configurar manualmente sin Blueprint:
+
+1. **Crear la base de datos:**
+   - Dashboard → **"New +"** → **"PostgreSQL"**
+   - Name: `finance-manager-db`
+   - Plan: Free (o el que prefieras)
+   - Region: Oregon (o tu preferencia)
+   - Click **"Create Database"**
+
+2. **Crear el servicio web:**
+   - Dashboard → **"New +"** → **"Web Service"**
+   - Conecta tu repositorio
+   - Configuración:
+     - **Name:** `finance-manager-backend`
+     - **Region:** Oregon (mismo que la DB)
+     - **Branch:** `main`
+     - **Runtime:** Node
+     - **Build Command:** 
+       ```bash
+       npm install && npm run build && npx prisma generate && npx prisma migrate deploy
+       ```
+     - **Start Command:** 
+       ```bash
+       npm start
+       ```
+     - **Plan:** Free (o el que prefieras)
+
+3. **Configurar variables de entorno:**
+   
+   En la pestaña **"Environment"** del servicio web, agrega:
 
    ```
    NODE_ENV=production
    PORT=10000
-   JWT_SECRET=tu-clave-secreta-generada
+   DATABASE_URL=[Connection String from your database]
+   JWT_SECRET=[Generate with: openssl rand -base64 32]
+   FRONTEND_URL=https://tu-frontend-url.com
    SENDGRID_API_KEY=tu-api-key
    SENDGRID_FROM_EMAIL=noreply@tudominio.com
-   FRONTEND_URL_PROD=https://tu-frontend.com
+   GEMINI_API_KEY=tu-api-key-de-gemini
    ```
 
-4. Guarda los cambios (Render reiniciará automáticamente)
+4. **Deploy:**
+   - Click **"Create Web Service"**
+   - Render ejecutará el build automáticamente
 
-### Heroku
+## 🔄 Actualizaciones y Redeploy
+
+Render despliega automáticamente cuando haces push a la rama `main`:
 
 ```bash
-# Instala Heroku CLI si no lo tienes
-# Luego ejecuta:
-
-heroku config:set NODE_ENV=production
-heroku config:set PORT=10000
-heroku config:set JWT_SECRET=tu-clave-secreta
-heroku config:set SENDGRID_API_KEY=tu-api-key
-heroku config:set SENDGRID_FROM_EMAIL=noreply@tudominio.com
-heroku config:set FRONTEND_URL_PROD=https://tu-frontend.com
-
-# Ver todas las variables
-heroku config
+git add .
+git commit -m "feat: nueva funcionalidad"
+git push origin main
 ```
 
-### Railway
+Render detectará el cambio y ejecutará automáticamente:
+1. `npm install`
+2. `npm run build`
+3. `npx prisma generate`
+4. `npx prisma migrate deploy`
+5. `npm start`
 
-1. Ve a tu proyecto en Railway
-2. Selecciona tu servicio
-3. Ve a la pestaña **"Variables"**
-4. Agrega cada variable de entorno
-5. Guarda los cambios
+## 🗄️ Migraciones de Base de Datos
 
-### Vercel
+Las migraciones se ejecutan automáticamente en cada deploy gracias al comando:
+```bash
+npx prisma migrate deploy
+```
 
-1. Ve a tu proyecto en Vercel
-2. Settings → Environment Variables
-3. Agrega cada variable para **Production**
-4. Guarda los cambios
+**Importante:** Antes de hacer push a producción, asegúrate de que las migraciones funcionen localmente:
 
-### DigitalOcean App Platform
+```bash
+# Crear una nueva migración
+npx prisma migrate dev --name descripcion_del_cambio
 
-1. Ve a tu app en DigitalOcean
-2. Settings → App-Level Environment Variables
-3. Agrega cada variable
-4. Guarda y redespliega
+# Probar en local
+npm run dev
+```
 
-## 🔐 Variables Requeridas
+## � Health Check
 
-### Obligatorias
+El backend incluye un endpoint de health check en `/health` que Render usa para verificar que el servicio está funcionando correctamente.
 
-| Variable | Descripción | Ejemplo |
-|----------|-------------|---------|
-| `NODE_ENV` | Entorno de ejecución | `production` |
-| `JWT_SECRET` | Clave secreta para JWT | Generar con `openssl rand -base64 32` |
-| `SENDGRID_API_KEY` | API Key de SendGrid | `SG.xxxxxxxxxxxxx` |
-| `SENDGRID_FROM_EMAIL` | Email verificado en SendGrid | `noreply@tudominio.com` |
-| `FRONTEND_URL_PROD` | URL del frontend en producción | `https://tu-frontend.com` |
+## 🔐 Variables de Entorno
 
-### Opcionales
+### Variables Configuradas Automáticamente (Blueprint)
+
+Estas variables se configuran automáticamente en `render.yaml`:
+
+| Variable | Descripción | Valor |
+|----------|-------------|-------|
+| `NODE_ENV` | Entorno de ejecución | `production` (automático) |
+| `PORT` | Puerto del servidor | `10000` (automático) |
+| `DATABASE_URL` | Conexión a PostgreSQL | Automático desde la DB |
+| `JWT_SECRET` | Clave secreta para JWT | Generado automáticamente por Render |
+
+### Variables que Debes Configurar Manualmente
+
+Estas variables deben configurarse en el dashboard de Render:
+
+| Variable | Descripción | Ejemplo | Obligatoria |
+|----------|-------------|---------|-------------|
+| `FRONTEND_URL` | URL del frontend en producción | `https://tu-frontend.com` | ✅ Sí |
+| `SENDGRID_API_KEY` | API Key de SendGrid | `SG.xxxxxxxxxxxxx` | ✅ Sí |
+| `SENDGRID_FROM_EMAIL` | Email verificado en SendGrid | `noreply@tudominio.com` | ✅ Sí |
+| `GEMINI_API_KEY` | API Key de Google Gemini AI | `AIza...` | ✅ Sí |
+
+### Variables Opcionales (Desarrollo)
 
 | Variable | Descripción | Default |
 |----------|-------------|---------|
-| `PORT` | Puerto del servidor | `3000` |
-| `FRONTEND_URL_DEV` | URL del frontend en desarrollo | `http://localhost:3000` |
-| `CORS_ORIGIN` | Origen CORS personalizado | Usa `FRONTEND_URL_PROD` o `FRONTEND_URL_DEV` |
+| `PORT` | Puerto del servidor (desarrollo) | `5000` |
+| `FRONTEND_URL` | URL del frontend (desarrollo) | `http://localhost:3000` |
 
 ## ✅ Validación
 
@@ -161,28 +242,96 @@ npm start
 
 ## 🆘 Troubleshooting
 
-### Error: "Missing required environment variables"
+### Error: "Missing required environment variables: JWT_SECRET"
 
-**Solución:** Asegúrate de que todas las variables requeridas estén configuradas en tu plataforma de hosting.
+**Causa:** La variable JWT_SECRET no está configurada.
+
+**Solución:** 
+- Si usas Blueprint: Render debería generar esto automáticamente. Verifica en Environment variables.
+- Si es manual: Genera una con `openssl rand -base64 32` y agrégala.
 
 ### Error: "CORS policy blocked"
 
-**Solución:** Verifica que `FRONTEND_URL_PROD` coincida exactamente con la URL de tu frontend (incluyendo `https://`).
-
-### Error: "SENDGRID_API_KEY no está configurada"
-
-**Solución:** Verifica que la variable esté configurada y que el nombre sea exactamente `SENDGRID_API_KEY`.
-
-### El servidor no inicia en producción
+**Causa:** El frontend no está en la lista de orígenes permitidos.
 
 **Solución:** 
-1. Verifica los logs de tu plataforma de hosting
-2. Asegúrate de que `NODE_ENV=production` esté configurado
-3. Verifica que todas las variables requeridas estén presentes
+1. Verifica que `FRONTEND_URL` esté configurada correctamente
+2. Asegúrate de incluir `https://` o `http://` según corresponda
+3. NO incluyas slash al final: ❌ `https://app.com/` → ✅ `https://app.com`
+
+### Error: Build failed - "Cannot find module 'prisma'"
+
+**Causa:** Prisma no se instaló correctamente.
+
+**Solución:** Verifica que el build command incluya:
+```bash
+npm install && npm run build && npx prisma generate && npx prisma migrate deploy
+```
+
+### Error: "Database connection failed"
+
+**Causa:** La variable DATABASE_URL no está configurada o es incorrecta.
+
+**Solución:**
+1. Verifica que la base de datos esté creada en Render
+2. En el servicio web, asegúrate de que DATABASE_URL esté vinculada a la base de datos
+3. Reinicia el servicio después de vincular la base de datos
+
+### El servidor se reinicia constantemente (crash loop)
+
+**Causa:** Algún error en el código o faltan variables requeridas.
+
+**Solución:**
+1. Ve a Logs en el dashboard de Render
+2. Busca el mensaje de error específico
+3. Verifica que todas las variables obligatorias estén configuradas
+
+### Las migraciones no se aplican
+
+**Causa:** El comando de migración falla durante el build.
+
+**Solución:**
+1. Verifica que las migraciones funcionen localmente primero
+2. Revisa los logs del build en Render
+3. Asegúrate de que DATABASE_URL esté disponible durante el build
+
+### Error 503 - Service Unavailable
+
+**Causa:** El servicio no pasó el health check.
+
+**Solución:**
+1. Verifica que el endpoint `/health` funcione
+2. Revisa los logs para ver por qué el servidor no inicia
+3. Asegúrate de que el PORT sea 10000 (default de Render)
+
+## � Monitoreo y Logs
+
+### Ver logs en tiempo real:
+1. Ve a tu servicio en Render Dashboard
+2. Click en la pestaña **"Logs"**
+3. Verás todos los console.log y errores en tiempo real
+
+### Métricas del servicio:
+- CPU y memoria usage
+- Request count
+- Response times
+- Disponibles en la pestaña **"Metrics"**
 
 ## 📚 Recursos Adicionales
 
-- [SendGrid - API Keys](https://app.sendgrid.com/settings/api_keys)
+- [Render - Blueprint Spec](https://render.com/docs/blueprint-spec)
 - [Render - Environment Variables](https://render.com/docs/environment-variables)
-- [Heroku - Config Vars](https://devcenter.heroku.com/articles/config-vars)
+- [Render - Deploy Hooks](https://render.com/docs/deploy-hooks)
+- [Prisma - Production Best Practices](https://www.prisma.io/docs/guides/performance-and-optimization/connection-management)
+- [SendGrid - API Keys](https://app.sendgrid.com/settings/api_keys)
+- [Google Gemini API - Get Started](https://ai.google.dev/tutorials/get_started_web)
+
+## 💡 Consejos de Producción
+
+1. **Usa conexión pooling:** Render reutiliza conexiones de Prisma automáticamente
+2. **Monitorea el uso de base de datos:** Free tier tiene límites de conexiones
+3. **Configura alertas:** En Render → Settings → Notifications
+4. **Habilita auto-deploy:** Para deployment continuo desde main
+5. **Usa Preview Environments:** Para probar PRs antes de merge
+6. **Backup de base de datos:** Render hace backups automáticos, pero considera backups adicionales para datos críticos
 

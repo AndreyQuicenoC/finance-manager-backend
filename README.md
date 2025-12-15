@@ -7,9 +7,29 @@ Backend service for personal finance manager application, built with **Node.js**
 - **Runtime**: Node.js 18
 - **Language**: TypeScript
 - **Framework**: Express.js
+- **Database**: PostgreSQL + Prisma ORM
 - **Testing**: Jest + Supertest
 - **Linting**: ESLint with TypeScript support
 - **Code Quality**: SonarCloud (80% coverage threshold)
+- **Deployment**: Render (with automatic Blueprint configuration)
+
+## ☁️ Deploy to Production
+
+Este repositorio está preconfigurado para despliegue en Render:
+
+**🚀 [Guía Rápida de Despliegue](./RENDER_DEPLOY.md)** - Despliega en menos de 10 minutos
+
+**📋 [Checklist de Pre-Despliegue](./RENDER_CHECKLIST.md)** - Verifica antes de desplegar
+
+**📚 [Guía Completa de Despliegue](./DEPLOYMENT.md)** - Documentación detallada
+
+### Características del Despliegue
+- ✅ Configuración automática con `render.yaml`
+- ✅ Base de datos PostgreSQL incluida
+- ✅ Migraciones automáticas de Prisma
+- ✅ Auto-deploy desde rama `main`
+- ✅ Health check endpoint configurado
+- ✅ Variables de entorno preconfiguradas
 
 ## 📋 Prerequisites
 
