@@ -97,9 +97,9 @@ Cuando despliegues, Render ejecutará automáticamente:
 
 ```bash
 # 1. Instalación de dependencias
-npm install
+npm ci
 
-# 2. Build de TypeScript
+# 2. Build de TypeScript (usando tsconfig.build.json para producción)
 npm run build
 
 # 3. Generación del cliente Prisma
