@@ -7,9 +7,29 @@ Backend service for personal finance manager application, built with **Node.js**
 - **Runtime**: Node.js 18
 - **Language**: TypeScript
 - **Framework**: Express.js
+- **Database**: PostgreSQL + Prisma ORM
 - **Testing**: Jest + Supertest
 - **Linting**: ESLint with TypeScript support
 - **Code Quality**: SonarCloud (80% coverage threshold)
+- **Deployment**: Render (with automatic Blueprint configuration)
+
+## ☁️ Deploy to Production
+
+Este repositorio está preconfigurado para despliegue en Render:
+
+**🚀 [Guía Rápida de Despliegue](./RENDER_DEPLOY.md)** - Despliega en menos de 10 minutos
+
+**📋 [Checklist de Pre-Despliegue](./RENDER_CHECKLIST.md)** - Verifica antes de desplegar
+
+**📚 [Guía Completa de Despliegue](./DEPLOYMENT.md)** - Documentación detallada
+
+### Características del Despliegue
+- ✅ Configuración automática con `render.yaml`
+- ✅ Base de datos PostgreSQL incluida
+- ✅ Migraciones automáticas de Prisma
+- ✅ Auto-deploy desde rama `main`
+- ✅ Health check endpoint configurado
+- ✅ Variables de entorno preconfiguradas
 
 ## 📋 Prerequisites
 
@@ -21,6 +41,12 @@ Backend service for personal finance manager application, built with **Node.js**
 ```bash
 # Install dependencies
 npm install
+
+# Copy environment variables template
+cp .env.example .env
+
+# Edit .env file with your values
+# See .env.example for all required variables
 ```
 
 ## 🏃 Running the Application
@@ -80,6 +106,52 @@ npm run test:coverage
 - **Quality Gate** must pass before merging
 - Coverage file: `coverage/lcov.info`
 - Configuration: `sonar-project.properties`
+
+### SonarCloud Metrics
+
+The following metrics are automatically measured on every push/PR:
+
+#### 📈 **Cyclomatic Complexity**
+- **Threshold**: Maximum 10 per function
+- **What it measures**: Number of independent paths through code
+- **Goal**: Keep functions simple and maintainable
+- **How to improve**: Break complex functions into smaller ones
+
+#### 🎯 **Code Coverage**
+- **Minimum Required**: 60%
+- **Project Target**: 80%
+- **What it measures**: Percentage of code executed by tests
+- **View report**: `coverage/lcov-report/index.html`
+
+#### 🔄 **Code Duplication**
+- **Threshold**: Minimal duplication allowed
+- **What it measures**: Repeated code blocks
+- **How to improve**: Extract common code into reusable functions
+
+#### 🛠️ **Technical Debt**
+- **What it measures**: Estimated time to fix all code issues
+- **Goal**: Keep it minimal
+- **Categories**: Bugs, Vulnerabilities, Code Smells
+
+#### 👃 **Code Smells**
+- **What it measures**: Maintainability issues
+- **Examples**: Long functions, too many parameters, complex conditionals
+- **How to improve**: Refactor following clean code principles
+
+#### 🐛 **Reliability Rating**
+- **Target**: A (highest)
+- **What it measures**: Bug density and severity
+
+#### 🔒 **Security Rating**
+- **Target**: A (highest)
+- **What it measures**: Vulnerability density and severity
+
+### Viewing SonarCloud Dashboard
+
+1. Go to [SonarCloud](https://sonarcloud.io/)
+2. Navigate to project: `IvanAusechaS/finance-manager-backend`
+3. View all metrics, trends, and issues
+
 
 ## 🔧 Available Scripts
 
@@ -170,8 +242,29 @@ backend/
 
 9. Merge when all checks pass ✅
 
+## 🔐 Environment Variables
+
+The application requires several environment variables to run. See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed configuration instructions.
+
+**Quick setup for development:**
+```bash
+cp .env.example .env
+# Edit .env with your values
+```
+
+**Required variables:**
+- `JWT_SECRET` - Secret key for JWT tokens
+- `SENDGRID_API_KEY` - SendGrid API key for emails
+- `SENDGRID_FROM_EMAIL` - Verified sender email
+- `FRONTEND_URL_PROD` - Production frontend URL
+- `FRONTEND_URL_DEV` - Development frontend URL (optional)
+
+**Note:** In production, set these variables in your hosting platform (Render, Heroku, etc.). The `.env` file is only used in development.
+
 ## 📚 Additional Documentation
 
+- [API Endpoints Documentation](./API_ENDPOINTS.md) - Complete API reference for frontend
+- [Deployment Guide](./DEPLOYMENT.md) - Environment variables and deployment instructions
 - [Contributing Guidelines](CONTRIBUTING.MD)
 - [Code Quality Guide](BACKEND-CONTRIBUTING-QUALITY.md)
 

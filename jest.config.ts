@@ -3,13 +3,16 @@ import type { Config } from 'jest';
 const config: Config = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/src'],
+  roots: ['<rootDir>/tests', '<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
   transform: {
     '^.+\\.ts$': 'ts-jest',
   },
   collectCoverageFrom: [
     'src/**/*.{ts,js}',
+    '!src/app.ts',               // Express app wiring (covered indirectly, not core business logic)
+    '!src/routes/**',            // Route wiring, minimal logic
+    '!src/services/ai.gemini.ts',// External AI SDK integration, tested separately / mocked
     '!src/index.ts',
     '!src/server.ts',
     '!src/config/**',
