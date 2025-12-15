@@ -67,13 +67,20 @@ export const deleteUserByAdmin = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Usuario no encontrado" });
     }
 
+    // Verificar si ya está marcado como eliminado
+    if (existing.deletedAt) {
+      return res.status(400).json({ message: "El usuario ya se encuentra eliminado." });
+    }
+
+    // --- AJUSTE CLAVE AQUÍ ---
     await prisma.user.update({
       where: { id: userId },
       data: {
-        // borrado lógico
-        isDeleted: true,
+        // Borrado lógico: Establece la fecha de eliminación.
+        deletedAt: new Date(), 
       } as Prisma.UserUpdateInput,
     });
+    // -------------------------
 
     return res.json({ message: "Usuario eliminado correctamente" });
   } catch (error) {
@@ -91,8 +98,10 @@ export const getAllUsersForAdmin = async (_req: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany({
       where: {
-        // En esquemas antiguos isDeleted puede no existir, Prisma lo ignora
+        // --- AJUSTE CLAVE AQUÍ ---
+        deletedAt: null, // <--- Solo usuarios activos (no eliminados)
       } as Prisma.UserWhereInput,
+      // -------------------------
       select: {
         id: true,
         email: true,
@@ -298,13 +307,20 @@ export const deleteAdminUser = async (req: Request, res: Response) => {
         message: "Solo se pueden eliminar cuentas con rol administrador",
       });
     }
+    
+    // Verificar si ya está eliminado
+    if (user.deletedAt) {
+        return res.status(400).json({ message: "El administrador ya se encuentra eliminado." });
+    }
 
+    // --- AJUSTE CLAVE AQUÍ ---
     await prisma.user.update({
       where: { id: userId },
       data: {
-        isDeleted: true,
+        deletedAt: new Date(), // <--- Marca el administrador como eliminado
       } as Prisma.UserUpdateInput,
     });
+    // -------------------------
 
     return res.json({ message: "Administrador eliminado correctamente" });
   } catch (error) {

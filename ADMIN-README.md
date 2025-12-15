@@ -7,9 +7,9 @@ Este documento explica **cómo consumir los nuevos endpoints de administración*
 ## 1. Roles y tipos de token
 
 - **Roles soportados**
-  - `user`: usuario normal.
-  - `admin`: administrador.
-  - `super_admin`: súper administrador (máximo nivel).
+  - `user`: usuario normal. id = 3 en la db en la tabla role
+  - `admin`: administrador. id = 2 en la db en la tabla role
+  - `super_admin`: súper administrador (máximo nivel). id = 4 en la db en la tabla role
 
 - **Tokens y cookies**
   - Login de usuario normal:
