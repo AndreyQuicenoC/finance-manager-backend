@@ -8,81 +8,73 @@ datasource db {
 }
 
 model Role {
-  id      Int @id @default(autoincrement())
-  name    String @unique
-  user    User[]
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  user User[]
 }
 
 model User {
-  id         Int           @id @default(autoincrement())
-  email      String        @unique
-  nickname   String?
-  password   String
-  roleId     Int
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-
-  // Relaciones
-  session         UserSession[]
-  accounts        Account[]
-  passwordReset   PasswordReset[]
-  role            Role @relation(fields: [roleId], references: [id])
+  id             Int             @id @default(autoincrement())
+  email          String          @unique
+  nickname       String?
+  password       String
+  deletedAt      DateTime?       
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  roleId         Int
+  accounts       Account[]
+  passwordReset  PasswordReset[]
+  role           Role            @relation(fields: [roleId], references: [id])
+  session        UserSession[]
 }
 
 model UserSession {
-  id            Int      @id @default(autoincrement())
-  tokenId       String
-  refreshToken  String   @unique
-  userId        Int
-  deviceId      String?
-  userAgent     String?
-  ip            String?
-  createdAt     DateTime @default(now())
-  lastUsedAt    DateTime @updatedAt
-  expiresAt     DateTime
-  revoke        Boolean @default(false)
-  replaceBy     String?
-  
-  // Relaciones
-  user          User     @relation(fields: [userId], references: [id])
+  id           Int      @id @default(autoincrement())
+  tokenId      String
+  refreshToken String   @unique
+  userId       Int
+  deviceId     String?
+  userAgent    String?
+  ip           String?
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime @updatedAt
+  expiresAt    DateTime
+  revoke       Boolean  @default(false)
+  replaceBy    String?
+  user         User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, deviceId])
 }
 
 model Category {
-  id         Int       @id @default(autoincrement())
-  tipo       String    
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  // Relaciones
-  accounts   Account[]
+  id        Int       @id @default(autoincrement())
+  tipo      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  accounts  Account[]
 }
 
 model Account {
-  id         Int       @id @default(autoincrement())
-  name       String?
-  money      Float     @default(0)
-  userId     Int
+  id          Int         @id @default(autoincrement())
+  name        String?
+  money       Float       @default(0)
+  userId      Int
+  categoryId  Int
+  createdAt   DateTime    @default(now())
   description String?
-  categoryId Int
-  createdAt  DateTime  @default(now())
-
-  // Relaciones
-  user          User      @relation(fields: [userId], references: [id])
-  category      Category  @relation(fields: [categoryId], references: [id])
-  reports       Report[]
-  chats         Chat[]
-  tags          TagPocket[]
+  category    Category    @relation(fields: [categoryId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+  chats       Chat[]
+  reports     Report[]
+  tags        TagPocket[]
 }
 
 model TagPocket {
-  id          Int           @id @default(autoincrement())
-  name        String
-  description String?
-  accountId      Int
-
-  account      Account @relation(fields: [accountId], references: [id])
+  id           Int           @id @default(autoincrement())
+  name         String
+  description  String?
+  accountId    Int
+  account      Account       @relation(fields: [accountId], references: [id])
   transactions Transaction[]
 }
 
@@ -91,87 +83,67 @@ model Transaction {
   amount          Float
   isIncome        Boolean
   transactionDate DateTime
-  description    String?
-  tagId          Int
-
-  // Relaciones
-  tag            TagPocket @relation(fields: [tagId], references: [id])
+  description     String?
+  tagId           Int
+  tag             TagPocket @relation(fields: [tagId], references: [id])
 }
 
 model GoalTarget {
-
-  id          Int @id @default(autoincrement())
-  goalId      Int
-  targetType  String  // guarda si es account o si es tag 
-  targetId    Int     // dependiendo del tipo busca en esas tablas
-
-  goal        Goal @relation(fields: [goalId], references: [id])
+  id         Int    @id @default(autoincrement())
+  goalId     Int
+  targetType String
+  targetId   Int
+  goal       Goal   @relation(fields: [goalId], references: [id])
 }
 
 model Goal {
-  id              Int        @id @default(autoincrement())
+  id              Int          @id @default(autoincrement())
   description     String
   init_date       DateTime
   final_date      DateTime
-  max_money       Float
   actual_progress Float
-
-  // Relaciones
+  max_money       Float
   target          GoalTarget[]
-
 }
 
 model Period {
   id          Int      @id @default(autoincrement())
   name        String   @unique
   description String
-
-  // Relaciones
   reports     Report[]
 }
 
 model Report {
-  id         Int      @id @default(autoincrement())
-  bills      Json
-  accountId  Int
-  periodId   Int
-
-  // Relaciones
-  account    Account @relation(fields: [accountId], references: [id])
-  period     Period  @relation(fields: [periodId], references: [id])
+  id        Int     @id @default(autoincrement())
+  bills     Json
+  accountId Int
+  periodId  Int
+  account   Account @relation(fields: [accountId], references: [id])
+  period    Period  @relation(fields: [periodId], references: [id])
 }
 
 model Chat {
-  id          Int                  @id @default(autoincrement())
-  accountId   Int
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-
-  // Relaciones
-  account     Account @relation(fields: [accountId], references: [id])
-  messages    Message[]
+  id        Int       @id @default(autoincrement())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  accountId Int
+  account   Account   @relation(fields: [accountId], references: [id])
+  messages  Message[]
 }
 
 model Message {
-  id              Int      @id @default(autoincrement())
+  id              Int    @id @default(autoincrement())
   message_send    String
   answers_message String
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
   chatId          Int
-
-  // Relaciones
-  chat            Chat     @relation(fields: [chatId], references: [id])
+  chat            Chat   @relation(fields: [chatId], references: [id])
 }
 
 model PasswordReset {
-  id         Int      @id @default(autoincrement())
-  token      String   @unique
-  userId     Int
-  expiresAt  DateTime
-  used       Boolean  @default(false)
-
-  // Relaciones
-  user       User     @relation(fields: [userId], references: [id])
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id])
 }
-

@@ -1,9 +1,29 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
-import { Prisma } from "@prisma/client";
 import prisma from "../config/db";
 
 const SALT_ROUNDS = 10;
+
+/**
+ * Helper function to validate and parse user ID from request params.
+ */
+const validateUserId = (id: string): { valid: boolean; userId?: number; error?: string } => {
+  const userId = Number(id);
+  if (!id || Number.isNaN(userId)) {
+    return { valid: false, error: "ID de usuario inválido" };
+  }
+  return { valid: true, userId };
+};
+
+/**
+ * Helper function to perform soft delete on a user.
+ */
+const softDeleteUser = async (userId: number) => {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { deletedAt: new Date() },
+  });
+};
 
 /**
  * Obtener historial de logeos / sesiones de usuario.
@@ -53,27 +73,25 @@ export const getLoginLogs = async (req: Request, res: Response) => {
 export const deleteUserByAdmin = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = Number(id);
+    const validation = validateUserId(id);
 
-    if (!id || Number.isNaN(userId)) {
-      return res.status(400).json({ message: "ID de usuario inválido" });
+    if (!validation.valid) {
+      return res.status(400).json({ message: validation.error });
     }
 
     const existing = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: validation.userId },
     });
 
     if (!existing) {
       return res.status(404).json({ message: "Usuario no encontrado" });
     }
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        // borrado lógico
-        isDeleted: true,
-      } as Prisma.UserUpdateInput,
-    });
+    if (existing.deletedAt) {
+      return res.status(400).json({ message: "El usuario ya se encuentra eliminado." });
+    }
+
+    await softDeleteUser(validation.userId!);
 
     return res.json({ message: "Usuario eliminado correctamente" });
   } catch (error) {
@@ -90,9 +108,7 @@ export const deleteUserByAdmin = async (req: Request, res: Response) => {
 export const getAllUsersForAdmin = async (_req: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany({
-      where: {
-        // En esquemas antiguos isDeleted puede no existir, Prisma lo ignora
-      } as Prisma.UserWhereInput,
+      where: { deletedAt: null },
       select: {
         id: true,
         email: true,
@@ -176,9 +192,7 @@ export const getOverviewStats = async (req: Request, res: Response) => {
       },
     });
 
-    const totalUsers = await prisma.user.count({
-      where: {} as Prisma.UserWhereInput,
-    });
+    const totalUsers = await prisma.user.count();
 
     const adminCount = await prisma.user.count({
       where: {
@@ -276,17 +290,15 @@ export const createAdminUser = async (req: Request, res: Response) => {
 export const deleteAdminUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const userId = Number(id);
+    const validation = validateUserId(id);
 
-    if (!id || Number.isNaN(userId)) {
-      return res.status(400).json({ message: "ID de usuario inválido" });
+    if (!validation.valid) {
+      return res.status(400).json({ message: validation.error });
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        role: true,
-      },
+      where: { id: validation.userId },
+      include: { role: true },
     });
 
     if (!user) {
@@ -298,13 +310,12 @@ export const deleteAdminUser = async (req: Request, res: Response) => {
         message: "Solo se pueden eliminar cuentas con rol administrador",
       });
     }
+    
+    if (user.deletedAt) {
+      return res.status(400).json({ message: "El administrador ya se encuentra eliminado." });
+    }
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        isDeleted: true,
-      } as Prisma.UserUpdateInput,
-    });
+    await softDeleteUser(validation.userId!);
 
     return res.json({ message: "Administrador eliminado correctamente" });
   } catch (error) {
