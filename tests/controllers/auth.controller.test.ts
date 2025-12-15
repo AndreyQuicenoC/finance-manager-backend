@@ -8,6 +8,9 @@ import {
   recoverPass,
   resetPass,
   adminLogin,
+  updateProfile,
+  changePassword,
+  deleteAccount,
 } from '../../src/controllers/auth.controller';
 import prisma from '../../src/config/db';
 import bcrypt from 'bcrypt';
@@ -21,6 +24,7 @@ jest.mock('../../src/config/db', () => ({
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
       count: jest.fn(),
       findMany: jest.fn(),
     },
@@ -739,6 +743,395 @@ describe('AuthController', () => {
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
         error: 'Acceso restringido a administradores',
+      });
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('should update user nickname successfully', async () => {
+      const req = {
+        user: { userId: '1' },
+        body: { nickname: 'NewNickname' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const updatedUser = {
+        id: 1,
+        email: 'test@example.com',
+        nickname: 'NewNickname',
+        createdAt: new Date(),
+      };
+      prismaMock.user.update.mockResolvedValueOnce(updatedUser);
+
+      await updateProfile(req, res);
+
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { nickname: 'NewNickname' },
+        select: { id: true, email: true, nickname: true, createdAt: true },
+      });
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Perfil actualizado exitosamente',
+        user: updatedUser,
+      });
+    });
+
+    it('should update user email successfully', async () => {
+      const req = {
+        user: { userId: '2' },
+        body: { email: 'newemail@example.com' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const updatedUser = {
+        id: 2,
+        email: 'newemail@example.com',
+        nickname: 'User',
+        createdAt: new Date(),
+      };
+      prismaMock.user.findUnique.mockResolvedValueOnce(null);
+      prismaMock.user.update.mockResolvedValueOnce(updatedUser);
+
+      await updateProfile(req, res);
+
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'newemail@example.com' },
+      });
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Perfil actualizado exitosamente',
+        user: updatedUser,
+      });
+    });
+
+    it('should return 400 when email is already in use by another user', async () => {
+      const req = {
+        user: { userId: '1' },
+        body: { email: 'taken@example.com' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      prismaMock.user.findUnique.mockResolvedValueOnce({ id: 2, email: 'taken@example.com' });
+
+      await updateProfile(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'El correo electrónico ya está en uso',
+      });
+    });
+
+    it('should return 400 when no fields are provided', async () => {
+      const req = {
+        user: { userId: '1' },
+        body: {},
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await updateProfile(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Debe proporcionar al menos un campo para actualizar',
+      });
+    });
+
+    it('should return 401 when user is not authenticated', async () => {
+      const req = {
+        user: undefined,
+        body: { nickname: 'Test' },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await updateProfile(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ error: 'No autenticado' });
+    });
+
+    it('should return 500 when update fails', async () => {
+      const req = {
+        user: { userId: '1' },
+        body: { nickname: 'NewNickname' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      prismaMock.user.update.mockRejectedValueOnce(new Error('Database error'));
+
+      await updateProfile(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Error al actualizar perfil',
+        message: 'Database error',
+      });
+    });
+  });
+
+  describe('changePassword', () => {
+    it('should change password successfully', async () => {
+      const req = {
+        user: { userId: '1' },
+        body: {
+          currentPassword: 'OldPass123!',
+          newPassword: 'NewPass123!',
+          confirmPassword: 'NewPass123!',
+        },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const user = {
+        id: 1,
+        email: 'test@example.com',
+        password: 'hashed-old-password',
+      };
+      prismaMock.user.findUnique.mockResolvedValueOnce(user);
+      bcryptMock.compare.mockResolvedValueOnce(true);
+      bcryptMock.hash.mockResolvedValueOnce('hashed-new-password');
+      prismaMock.user.update.mockResolvedValueOnce({});
+
+      await changePassword(req, res);
+
+      expect(bcryptMock.compare).toHaveBeenCalledWith('OldPass123!', 'hashed-old-password');
+      expect(bcryptMock.hash).toHaveBeenCalledWith('NewPass123!', 10);
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { password: 'hashed-new-password' },
+      });
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Contraseña actualizada exitosamente',
+      });
+    });
+
+    it('should return 400 when fields are missing', async () => {
+      const req = {
+        user: { userId: '1' },
+        body: { currentPassword: 'OldPass123!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await changePassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Todos los campos son requeridos',
+      });
+    });
+
+    it('should return 400 when new passwords do not match', async () => {
+      const req = {
+        user: { userId: '1' },
+        body: {
+          currentPassword: 'OldPass123!',
+          newPassword: 'NewPass123!',
+          confirmPassword: 'DifferentPass123!',
+        },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await changePassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Las contraseñas nuevas no coinciden',
+      });
+    });
+
+    it('should return 404 when user is not found', async () => {
+      const req = {
+        user: { userId: '999' },
+        body: {
+          currentPassword: 'OldPass123!',
+          newPassword: 'NewPass123!',
+          confirmPassword: 'NewPass123!',
+        },
+      } as unknown as Request;
+      const res = createMockResponse();
+      prismaMock.user.findUnique.mockResolvedValueOnce(null);
+
+      await changePassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Usuario no encontrado' });
+    });
+
+    it('should return 400 when current password is incorrect', async () => {
+      const req = {
+        user: { userId: '1' },
+        body: {
+          currentPassword: 'WrongPass123!',
+          newPassword: 'NewPass123!',
+          confirmPassword: 'NewPass123!',
+        },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const user = {
+        id: 1,
+        email: 'test@example.com',
+        password: 'hashed-password',
+      };
+      prismaMock.user.findUnique.mockResolvedValueOnce(user);
+      bcryptMock.compare.mockResolvedValueOnce(false);
+
+      await changePassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Contraseña actual incorrecta',
+      });
+    });
+
+    it('should return 401 when user is not authenticated', async () => {
+      const req = {
+        user: undefined,
+        body: {
+          currentPassword: 'OldPass123!',
+          newPassword: 'NewPass123!',
+          confirmPassword: 'NewPass123!',
+        },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await changePassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ error: 'No autenticado' });
+    });
+
+    it('should return 500 when password change fails', async () => {
+      const req = {
+        user: { userId: '1' },
+        body: {
+          currentPassword: 'OldPass123!',
+          newPassword: 'NewPass123!',
+          confirmPassword: 'NewPass123!',
+        },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const user = {
+        id: 1,
+        email: 'test@example.com',
+        password: 'hashed-password',
+      };
+      prismaMock.user.findUnique.mockResolvedValueOnce(user);
+      bcryptMock.compare.mockResolvedValueOnce(true);
+      bcryptMock.hash.mockRejectedValueOnce(new Error('Hashing failed'));
+
+      await changePassword(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Error al cambiar contraseña',
+        message: 'Hashing failed',
+      });
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('should delete account successfully', async () => {
+      const req = {
+        user: { userId: '1' },
+        body: { password: 'ValidPass123!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const user = {
+        id: 1,
+        email: 'test@example.com',
+        password: 'hashed-password',
+      };
+      prismaMock.user.findUnique.mockResolvedValueOnce(user);
+      bcryptMock.compare.mockResolvedValueOnce(true);
+      prismaMock.user.delete.mockResolvedValueOnce({});
+
+      await deleteAccount(req, res);
+
+      expect(bcryptMock.compare).toHaveBeenCalledWith('ValidPass123!', 'hashed-password');
+      expect(prismaMock.user.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(res.clearCookie).toHaveBeenCalledWith('AccessToken');
+      expect(res.clearCookie).toHaveBeenCalledWith('RefreshToken');
+      expect(res.clearCookie).toHaveBeenCalledWith('deviceId');
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Cuenta eliminada exitosamente',
+      });
+    });
+
+    it('should return 400 when password is missing', async () => {
+      const req = {
+        user: { userId: '1' },
+        body: {},
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await deleteAccount(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'La contraseña es requerida',
+      });
+    });
+
+    it('should return 404 when user is not found', async () => {
+      const req = {
+        user: { userId: '999' },
+        body: { password: 'ValidPass123!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      prismaMock.user.findUnique.mockResolvedValueOnce(null);
+
+      await deleteAccount(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Usuario no encontrado' });
+    });
+
+    it('should return 400 when password is incorrect', async () => {
+      const req = {
+        user: { userId: '1' },
+        body: { password: 'WrongPass123!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const user = {
+        id: 1,
+        email: 'test@example.com',
+        password: 'hashed-password',
+      };
+      prismaMock.user.findUnique.mockResolvedValueOnce(user);
+      bcryptMock.compare.mockResolvedValueOnce(false);
+
+      await deleteAccount(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Contraseña incorrecta' });
+    });
+
+    it('should return 401 when user is not authenticated', async () => {
+      const req = {
+        user: undefined,
+        body: { password: 'ValidPass123!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await deleteAccount(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ error: 'No autenticado' });
+    });
+
+    it('should return 500 when deletion fails', async () => {
+      const req = {
+        user: { userId: '1' },
+        body: { password: 'ValidPass123!' },
+      } as unknown as Request;
+      const res = createMockResponse();
+      const user = {
+        id: 1,
+        email: 'test@example.com',
+        password: 'hashed-password',
+      };
+      prismaMock.user.findUnique.mockResolvedValueOnce(user);
+      bcryptMock.compare.mockResolvedValueOnce(true);
+      prismaMock.user.delete.mockRejectedValueOnce(new Error('Database error'));
+
+      await deleteAccount(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'Error al eliminar cuenta',
+        message: 'Database error',
       });
     });
   });

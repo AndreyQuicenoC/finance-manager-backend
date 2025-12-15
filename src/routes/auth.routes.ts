@@ -22,6 +22,9 @@ import {
   login,
   logout,
   getProfile,
+  updateProfile,
+  changePassword,
+  deleteAccount,
   recoverPass,
   resetPass,
   adminLogin,
@@ -74,6 +77,30 @@ router.post("/logout", verifyToken, logout);
  * @middleware verifyToken
  */
 router.get("/profile", verifyToken, getProfile);
+
+/**
+ * @route PUT /api/auth/profile
+ * @description Update authenticated user's profile (nickname and/or email)
+ * @access Private (requires authentication)
+ * @middleware verifyToken
+ */
+router.put("/profile", verifyToken, updateProfile);
+
+/**
+ * @route POST /api/auth/change-password
+ * @description Change user's password
+ * @access Private (requires authentication)
+ * @middleware verifyToken
+ */
+router.post("/change-password", verifyToken, changePassword);
+
+/**
+ * @route DELETE /api/auth/account
+ * @description Delete user's account permanently
+ * @access Private (requires authentication)
+ * @middleware verifyToken
+ */
+router.delete("/account", verifyToken, deleteAccount);
 
 /**
  * @route POST /api/auth/recover
